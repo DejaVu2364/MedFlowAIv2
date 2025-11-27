@@ -1,0 +1,544 @@
+
+import { useState, useEffect, useCallback } from 'react';
+import { Patient, AuditEvent, User, PatientStatus, Vitals, VitalsRecord, SOAPNote, TeamNote, Checklist, Order, OrderCategory, Round, ClinicalFileSections, AISuggestionHistory, HistorySectionData, Allergy, VitalsMeasurements, DischargeSummary } from '../types';
+import { seedPatients, calculateTriageFromVitals, logAuditEventToServer } from '../services/api';
+import { subscribeToPatients, savePatient, updatePatientInDb, logAuditToDb, getIsFirebaseInitialized } from '../services/firebase';
+import { classifyComplaint, suggestOrdersFromClinicalFile, generateStructuredDischargeSummary, generateOverviewSummary, summarizeClinicalFile, summarizeVitals as summarizeVitalsFromService, crossCheckRound, getFollowUpQuestions as getFollowUpQuestionsFromService, composeHistoryParagraph, generateHandoverSummary as generateHandoverSummaryService, answerWithRAG, scanForMissingInfo, summarizeSection as summarizeSectionService, crossCheckClinicalFile, checkOrderSafety } from '../services/geminiService';
+import { useToast } from '../contexts/ToastContext';
+
+export const usePatientData = (currentUser: User | null) => {
+    const [patients, setPatients] = useState<Patient[]>([]);
+    const [auditLog, setAuditLog] = useState<AuditEvent[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null);
+    const { addToast } = useToast();
+
+    // Initial Data Load & Sync
+    useEffect(() => {
+        let unsubscribe: (() => void) | undefined;
+        const initialize = async () => {
+            setIsLoading(true);
+
+            // Safety timeout to ensure loading state doesn't hang
+            const safetyTimeout = setTimeout(() => {
+                setIsLoading(false);
+            }, 5000);
+
+            if (getIsFirebaseInitialized()) {
+                // Subscribe to real-time updates
+                unsubscribe = subscribeToPatients((realtimePatients) => {
+                    clearTimeout(safetyTimeout);
+                    if (realtimePatients.length === 0) {
+                        // Only seed if strictly necessary and empty
+                        // seedPatients().then(seeded => {
+                        //     seeded.forEach(p => savePatient(p));
+                        // });
+                    } else {
+                        setPatients(realtimePatients);
+                    }
+                    setIsLoading(false);
+                });
+            } else {
+                // Local Mode Fallback
+                try {
+                    const initialPatients = await seedPatients();
+                    setPatients(initialPatients);
+                } catch (e) {
+                    setError('Failed to load initial data.');
+                } finally {
+                    clearTimeout(safetyTimeout);
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        if (currentUser) {
+            initialize();
+        } else {
+            setPatients([]);
+        }
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, [currentUser]);
+
+    // --- Helper to update state AND firebase ---
+    const updateStateAndDb = useCallback((patientId: string, updater: (p: Patient) => Patient) => {
+        setPatients(prev => {
+            const newPatients = prev.map(p => {
+                if (p.id === patientId) {
+                    const updated = updater(p);
+                    // Sync to DB
+                    if (getIsFirebaseInitialized()) {
+                        updatePatientInDb(patientId, updated);
+                    }
+                    return updated;
+                }
+                return p;
+            });
+            return newPatients;
+        });
+    }, []);
+
+
+    // --- Actions ---
+
+    const logAuditEvent = useCallback((eventData: Omit<AuditEvent, 'id' | 'timestamp'>) => {
+        const newEvent: AuditEvent = {
+            ...eventData,
+            id: `AUDIT-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+        };
+        setAuditLog(prev => [newEvent, ...prev]);
+        logAuditEventToServer(newEvent);
+        logAuditToDb(newEvent);
+    }, []);
+
+    const addPatient = useCallback(async (patientData: Omit<Patient, 'id' | 'status' | 'registrationTime' | 'triage' | 'timeline' | 'orders' | 'vitalsHistory' | 'clinicalFile' | 'rounds' | 'dischargeSummary' | 'overview' | 'results' | 'vitals' | 'handoverSummary'>) => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            let aiTriageWithCache: any;
+
+            try {
+                const result = await classifyComplaint(patientData.complaint);
+                aiTriageWithCache = { ...result.data, fromCache: result.fromCache };
+            } catch (e) {
+                console.warn("AI Triage failed, falling back to default:", e);
+                aiTriageWithCache = { department: 'Unknown', suggested_triage: 'None', confidence: 0, fromCache: false };
+            }
+
+            const patientId = `PAT-${Date.now()}`;
+            const newPatient: Patient = {
+                ...patientData,
+                id: patientId,
+                status: 'Waiting for Triage',
+                registrationTime: new Date().toISOString(),
+                aiTriage: aiTriageWithCache,
+                triage: { level: 'None', reasons: [] },
+                timeline: [],
+                orders: [],
+                results: [],
+                vitalsHistory: [],
+                clinicalFile: {
+                    id: `CF-${patientId}`,
+                    patientId,
+                    status: 'draft',
+                    aiSuggestions: {},
+                    sections: {
+                        history: {
+                            complaints: [{ symptom: patientData.complaint, duration: 'Unknown' }],
+                            hpi: '',
+                            associated_symptoms: [],
+                            allergy_history: [],
+                            review_of_systems: {}
+                        },
+                        gpe: { flags: { pallor: false, icterus: false, cyanosis: false, clubbing: false, lymphadenopathy: false, edema: false } },
+                        systemic: {}
+                    }
+                },
+                rounds: [],
+            };
+
+            if (getIsFirebaseInitialized()) {
+                await savePatient(newPatient);
+            } else {
+                setPatients(prev => [newPatient, ...prev]);
+            }
+            addToast('Patient registered successfully', 'success');
+        } catch (err: any) {
+            console.error("Failed to add patient:", err);
+            const msg = err.message || "Failed to register patient.";
+            setError(msg);
+            addToast(msg, 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [addToast]);
+
+    const updatePatientVitals = useCallback(async (patientId: string, vitals: Vitals) => {
+        if (!currentUser) return;
+        setIsLoading(true);
+        try {
+            const measurements: VitalsMeasurements = {
+                pulse: vitals.hr,
+                bp_sys: vitals.bpSys,
+                bp_dia: vitals.bpDia,
+                rr: vitals.rr,
+                spo2: vitals.spo2,
+                temp_c: vitals.temp,
+            };
+            const triage = calculateTriageFromVitals(measurements);
+            const newVitalsRecord: VitalsRecord = {
+                vitalId: `VIT-${Date.now()}`,
+                patientId,
+                recordedAt: new Date().toISOString(),
+                recordedBy: currentUser.id,
+                source: 'manual',
+                measurements
+            };
+
+            updateStateAndDb(patientId, p => ({
+                ...p,
+                vitals: measurements,
+                triage,
+                status: 'Waiting for Doctor',
+                vitalsHistory: [newVitalsRecord, ...p.vitalsHistory]
+            }));
+
+        } catch (e) {
+            setError('Failed to process vitals.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [currentUser, updateStateAndDb]);
+
+    const updatePatientStatus = useCallback((patientId: string, status: PatientStatus) => {
+        if (!currentUser) return;
+        updateStateAndDb(patientId, p => ({ ...p, status }));
+        logAuditEvent({ userId: currentUser.id, patientId, action: 'modify', entity: 'patient_record', payload: { field: 'status', value: status } });
+    }, [currentUser, updateStateAndDb, logAuditEvent]);
+
+    const addNoteToPatient = useCallback(async (patientId: string, content: string, isEscalation: boolean = false) => {
+        if (!currentUser) return;
+        const newNote: TeamNote = {
+            content, isEscalation, author: currentUser.name, authorId: currentUser.id, role: currentUser.role,
+            id: `NOTE-${Date.now()}`, type: 'TeamNote', patientId, timestamp: new Date().toISOString(),
+        };
+        updateStateAndDb(patientId, p => ({ ...p, timeline: [newNote, ...p.timeline] }));
+    }, [currentUser, updateStateAndDb]);
+
+    const addSOAPNoteToPatient = useCallback(async (patientId: string, soapData: Omit<SOAPNote, 'id' | 'type' | 'patientId' | 'timestamp' | 'author' | 'authorId' | 'role'>, originalSuggestion: any) => {
+        if (!currentUser) return;
+        const newSOAP: SOAPNote = {
+            ...soapData, id: `SOAP-${Date.now()}`, type: 'SOAP', patientId, author: currentUser.name, authorId: currentUser.id, role: currentUser.role, timestamp: new Date().toISOString(),
+        };
+        updateStateAndDb(patientId, p => ({ ...p, timeline: [newSOAP, ...p.timeline] }));
+    }, [currentUser, updateStateAndDb]);
+
+    const updateClinicalFileSection = useCallback(<K extends keyof ClinicalFileSections>(
+        patientId: string, sectionKey: K, data: Partial<ClinicalFileSections[K]>
+    ) => {
+        updateStateAndDb(patientId, p => {
+            const newSections = { ...p.clinicalFile.sections, [sectionKey]: { ...p.clinicalFile.sections[sectionKey], ...data } };
+            if (sectionKey === 'gpe' && 'flags' in data) { (newSections.gpe as any).flags = { ...p.clinicalFile.sections.gpe?.flags, ...(data as any).flags }; }
+            if (sectionKey === 'gpe' && 'vitals' in data) { (newSections.gpe as any).vitals = { ...p.clinicalFile.sections.gpe?.vitals, ...(data as any).vitals }; }
+            return { ...p, clinicalFile: { ...p.clinicalFile, sections: newSections } };
+        });
+    }, [updateStateAndDb]);
+
+    const composeHistoryWithAI = useCallback(async (patientId: string, sectionKey: 'history', fieldKey: keyof HistorySectionData) => {
+        const patient = patients.find(p => p.id === patientId);
+        if (!patient) return;
+
+        const historyValue = patient.clinicalFile.sections.history?.[fieldKey];
+        const seedText = typeof historyValue === 'string' ? historyValue : '';
+        const answers = (patient.clinicalFile.aiSuggestions?.history?.followUpAnswers?.[fieldKey] || {}) as Record<string, string>;
+        const questions = patient.clinicalFile.aiSuggestions?.history?.followUpQuestions?.[fieldKey] || [];
+
+        const answerMapWithQuestionText = Object.entries(answers).reduce((acc, [qId, ans]) => {
+            const questionText = questions.find(q => q.id === qId)?.text;
+            if (questionText) acc[questionText] = ans;
+            return acc;
+        }, {} as Record<string, string>);
+
+        try {
+            const { paragraph } = await composeHistoryParagraph(sectionKey, seedText, answerMapWithQuestionText);
+            updateStateAndDb(patientId, p => {
+                const newHistorySection = { ...p.clinicalFile.sections.history, [fieldKey]: paragraph };
+                return { ...p, clinicalFile: { ...p.clinicalFile, sections: { ...p.clinicalFile.sections, history: newHistorySection } } };
+            });
+        } catch (e) { setError("AI Error"); }
+    }, [patients, updateStateAndDb]);
+
+    const signOffClinicalFile = useCallback(async (patientId: string) => {
+        if (!currentUser) return;
+        setIsLoading(true);
+        const patient = patients.find(p => p.id === patientId);
+        if (!patient) return;
+
+        const updatedFile = { ...patient.clinicalFile, status: 'signed' as const, signedAt: new Date().toISOString(), signedBy: currentUser.id };
+
+        let suggestedOrders: Order[] = [];
+        try {
+            const result = await suggestOrdersFromClinicalFile(patient.clinicalFile.sections);
+            suggestedOrders = result.map(o => ({
+                orderId: `ORD-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                patientId: patient.id, createdBy: currentUser.id, createdAt: new Date().toISOString(),
+                category: o.category, subType: o.subType, label: o.label, payload: o.payload || {}, priority: o.priority, status: 'draft',
+                ai_provenance: { prompt_id: null, rationale: o.ai_provenance?.rationale || null },
+            }));
+        } catch (e) { }
+
+        updateStateAndDb(patientId, p => ({
+            ...p, clinicalFile: updatedFile, orders: [...p.orders, ...suggestedOrders]
+        }));
+        setIsLoading(false);
+    }, [patients, currentUser, updateStateAndDb]);
+
+    const generateDischargeSummary = useCallback(async (patientId: string) => {
+        const patient = patients.find(p => p.id === patientId);
+        if (!patient || !currentUser) return;
+        setIsLoading(true);
+        try {
+            const summaryData = await generateStructuredDischargeSummary(patient);
+
+            const fullSummary: DischargeSummary = {
+                ...summaryData,
+                id: `DS-${Date.now()}`,
+                patientId: patientId,
+                doctorId: currentUser.id,
+                status: 'draft',
+                generatedAt: new Date().toISOString()
+            };
+
+            updateStateAndDb(patientId, p => ({ ...p, dischargeSummary: fullSummary }));
+        } catch (e) { setError("AI summary generation failed."); }
+        setIsLoading(false);
+    }, [patients, updateStateAndDb, setError, currentUser]);
+
+    const saveDischargeSummary = useCallback(async (patientId: string, summary: DischargeSummary) => {
+        updateStateAndDb(patientId, p => ({ ...p, dischargeSummary: summary }));
+    }, [updateStateAndDb]);
+
+    const finalizeDischarge = useCallback(async (patientId: string, summary: DischargeSummary) => {
+        if (!currentUser) return;
+
+        const finalizedSummary: DischargeSummary = {
+            ...summary,
+            status: 'finalized',
+            finalizedAt: new Date().toISOString()
+        };
+
+        // Update Patient State
+        updateStateAndDb(patientId, p => ({
+            ...p,
+            status: 'Discharged',
+            dischargeSummary: finalizedSummary
+        }));
+
+        // Log Housekeeping Task (Simulation)
+        logAuditEvent({
+            userId: currentUser.id,
+            patientId: patientId,
+            action: 'create',
+            entity: 'housekeeping_task',
+            payload: { task: 'Terminal Clean', bedId: 'Unassigned', priority: 'High' }
+        });
+
+        // Log finalization
+        logAuditEvent({
+            userId: currentUser.id,
+            patientId: patientId,
+            action: 'finalize',
+            entity: 'discharge_summary',
+            entityId: summary.id
+        });
+
+    }, [currentUser, updateStateAndDb, logAuditEvent]);
+
+    const generatePatientOverview = useCallback(async (patientId: string) => {
+        const patient = patients.find(p => p.id === patientId);
+        if (!patient) return;
+        try {
+            const overview = await generateOverviewSummary(patient);
+            updateStateAndDb(patientId, p => ({ ...p, overview }));
+        } catch (e) { console.error(e); }
+    }, [patients, updateStateAndDb]);
+
+    const generateHandoverSummary = useCallback(async (patientId: string) => {
+        const patient = patients.find(p => p.id === patientId);
+        if (!patient) return;
+        setIsLoading(true);
+        try {
+            const summary = await generateHandoverSummaryService(patient);
+            updateStateAndDb(patientId, p => ({ ...p, handoverSummary: summary }));
+        } catch (e) { setError("Handover generation failed"); }
+        setIsLoading(false);
+    }, [patients, updateStateAndDb]);
+
+    const summarizePatientClinicalFile = useCallback(async (patientId: string) => {
+        const patient = patients.find(p => p.id === patientId);
+        if (!patient) return;
+        try {
+            const summary = await summarizeClinicalFile(patient.clinicalFile.sections);
+            updateStateAndDb(patientId, p => ({ ...p, clinicalFile: { ...p.clinicalFile, aiSummary: summary } }));
+        } catch (e) { console.error(e); }
+    }, [patients, updateStateAndDb]);
+
+    const formatHpi = useCallback(async (patientId: string) => {
+        const patient = patients.find(p => p.id === patientId);
+        if (!patient) return;
+        const hpi = patient.clinicalFile.sections.history?.hpi || '';
+        try {
+            const { paragraph } = await composeHistoryParagraph('history', hpi, {});
+            updateClinicalFileSection(patientId, 'history', { hpi: paragraph });
+        } catch (e) { console.error(e); }
+    }, [patients, updateClinicalFileSection]);
+
+    const checkMissingInfo = useCallback(async (patientId: string, section: keyof ClinicalFileSections) => {
+        const patient = patients.find(p => p.id === patientId);
+        if (!patient) return;
+        setIsLoading(true);
+        try {
+            const missingItems = await scanForMissingInfo(section, patient.clinicalFile.sections[section]);
+            if (missingItems.length > 0) {
+                addToast(`Missing Info in ${section}: ${missingItems.join(', ')}`, 'warning');
+            } else {
+                addToast(`${section} appears complete.`, 'success');
+            }
+        } catch (e) { console.error(e); }
+        setIsLoading(false);
+    }, [patients, addToast]);
+
+    const summarizeSection = useCallback(async (patientId: string, section: keyof ClinicalFileSections) => {
+        const patient = patients.find(p => p.id === patientId);
+        if (!patient) return;
+        setIsLoading(true);
+        try {
+            const summary = await summarizeSectionService(section, patient.clinicalFile.sections[section]);
+            // Update the specific section's summary if possible, or just toast it for now as UI might not have a dedicated field for every section summary
+            if (section === 'gpe') {
+                updateClinicalFileSection(patientId, 'gpe', { aiGeneratedSummary: summary });
+            } else {
+                // For other sections, maybe append to notes or just show
+                addToast(`Summary for ${section}: ${summary}`, 'info');
+            }
+        } catch (e) { console.error(e); }
+        setIsLoading(false);
+    }, [patients, updateClinicalFileSection, addToast]);
+
+    const getFollowUpQuestions = useCallback(async (patientId: string, section: keyof ClinicalFileSections, fieldKey: string, context: string) => {
+        const patient = patients.find(p => p.id === patientId);
+        if (!patient) return;
+        try {
+            const questions = await getFollowUpQuestionsFromService(section, context);
+            updateStateAndDb(patientId, p => {
+                const newSuggestions = { ...p.clinicalFile.aiSuggestions };
+                if (!newSuggestions[section]) newSuggestions[section] = { followUpQuestions: {}, followUpAnswers: {} };
+                // @ts-ignore
+                newSuggestions[section].followUpQuestions[fieldKey] = questions;
+                return { ...p, clinicalFile: { ...p.clinicalFile, aiSuggestions: newSuggestions } };
+            });
+        } catch (e) { console.error(e); }
+    }, [patients, updateStateAndDb]);
+
+    const updateFollowUpAnswer = useCallback((patientId: string, section: keyof ClinicalFileSections, questionId: string, answer: string) => {
+        updateStateAndDb(patientId, p => {
+            const newSuggestions = { ...p.clinicalFile.aiSuggestions };
+            if (!newSuggestions[section]) newSuggestions[section] = { followUpQuestions: {}, followUpAnswers: {} };
+            // @ts-ignore
+            if (!newSuggestions[section].followUpAnswers) newSuggestions[section].followUpAnswers = {};
+            // @ts-ignore
+            // We need to map questionId to the fieldKey somehow, or store answers differently.
+            // For now assuming flat structure or handling in UI.
+            // Actually UI calls: updateFollowUpAnswer(patient.id, fieldKey, q.id, opt)
+            // So we need fieldKey in arguments.
+            return p; // Placeholder until signature matches UI
+        });
+    }, [updateStateAndDb]);
+
+    // Corrected updateFollowUpAnswer to match UI usage
+    const updateFollowUpAnswerCorrect = useCallback((patientId: string, fieldKey: string, questionId: string, answer: string) => {
+        updateStateAndDb(patientId, p => {
+            const newSuggestions = { ...p.clinicalFile.aiSuggestions };
+            const section = 'history'; // Assuming history for now as per UI usage
+            if (!newSuggestions[section]) newSuggestions[section] = { followUpQuestions: {}, followUpAnswers: {} };
+            // @ts-ignore
+            if (!newSuggestions[section].followUpAnswers) newSuggestions[section].followUpAnswers = {};
+            // @ts-ignore
+            if (!newSuggestions[section].followUpAnswers[fieldKey]) newSuggestions[section].followUpAnswers[fieldKey] = {};
+            // @ts-ignore
+            // The UI expects answers to be stored. The structure in types might need checking.
+            // For now, let's just store it.
+            // Actually types say followUpAnswers is Record<string, string> | Record<string, Record<string, string>>?
+            // Let's check types. Assuming simple map for now.
+            // Wait, UI does: answers[q.id] === opt.
+            // So followUpAnswers[fieldKey] should be a Record<questionId, answer>.
+            // @ts-ignore
+            newSuggestions[section].followUpAnswers[fieldKey] = { ...newSuggestions[section].followUpAnswers[fieldKey], [questionId]: answer };
+
+            return { ...p, clinicalFile: { ...p.clinicalFile, aiSuggestions: newSuggestions } };
+        });
+    }, [updateStateAndDb]);
+
+    const crossCheckFile = useCallback(async (patientId: string) => {
+        const patient = patients.find(p => p.id === patientId);
+        if (!patient) return;
+        setIsLoading(true);
+        try {
+            const inconsistencies = await crossCheckClinicalFile(patient.clinicalFile.sections);
+            updateStateAndDb(patientId, p => ({
+                ...p, clinicalFile: { ...p.clinicalFile, crossCheckInconsistencies: inconsistencies }
+            }));
+            if (inconsistencies.length === 0) {
+                addToast("No inconsistencies found.", 'success');
+            } else {
+                addToast(`Found ${inconsistencies.length} potential inconsistencies.`, 'warning');
+            }
+        } catch (e) { console.error(e); }
+        setIsLoading(false);
+    }, [patients, updateStateAndDb, addToast]);
+
+    // --- ORDER MANAGEMENT (Fixed) ---
+
+    const addOrderToPatient = useCallback(async (patientId: string, orderData: Omit<Order, 'orderId' | 'patientId' | 'createdBy' | 'createdAt' | 'status' | 'ai_provenance'>) => {
+        if (!currentUser) return;
+        const patient = patients.find(p => p.id === patientId);
+        if (!patient) return;
+
+        const newOrder: Order = {
+            ...orderData,
+            orderId: `ORD-${Date.now()}`,
+            patientId,
+            createdBy: currentUser.id,
+            createdAt: new Date().toISOString(),
+            status: 'draft',
+            ai_provenance: { prompt_id: null, rationale: null }
+        };
+
+        // Safety Check
+        if (orderData.category === 'medication') {
+            const safetyCheck = await checkOrderSafety(newOrder, patient);
+            if (!safetyCheck.safe) {
+                addToast(`Safety Warning: ${safetyCheck.warning}`, 'error');
+                // We still add it as draft, but maybe mark it? For now just warn.
+            }
+        }
+
+        updateStateAndDb(patientId, p => ({ ...p, orders: [newOrder, ...p.orders] }));
+        addToast("Order added to drafts", 'success');
+    }, [currentUser, patients, updateStateAndDb, addToast]);
+
+    const updateOrder = useCallback((patientId: string, orderId: string, updates: Partial<Order>) => {
+        updateStateAndDb(patientId, p => ({
+            ...p,
+            orders: p.orders.map(o => o.orderId === orderId ? { ...o, ...updates } : o)
+        }));
+    }, [updateStateAndDb]);
+
+    const sendAllDrafts = useCallback((patientId: string, category?: OrderCategory) => {
+        updateStateAndDb(patientId, p => {
+            const newOrders = p.orders.map(o => {
+                if (o.status === 'draft' && (!category || o.category === category)) {
+                    return { ...o, status: 'sent' as const };
+                }
+                return o;
+            });
+            return { ...p, orders: newOrders };
+        });
+        addToast("Orders sent successfully", 'success');
+    }, [updateStateAndDb, addToast]);
+
+    return {
+        patients, auditLog, isLoading, error, setError,
+        setPatients,
+        addPatient, updatePatientVitals, updatePatientStatus, addNoteToPatient, addSOAPNoteToPatient,
+        updateClinicalFileSection, composeHistoryWithAI, signOffClinicalFile, logAuditEvent,
+        updateStateAndDb, generateDischargeSummary, saveDischargeSummary, finalizeDischarge, generatePatientOverview, generateHandoverSummary,
+        summarizePatientClinicalFile, formatHpi, checkMissingInfo, summarizeSection, getFollowUpQuestions, updateFollowUpAnswer: updateFollowUpAnswerCorrect, crossCheckFile,
+        addOrderToPatient, updateOrder, sendAllDrafts
+    };
+};

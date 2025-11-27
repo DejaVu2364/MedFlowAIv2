@@ -1,0 +1,7 @@
+{
+  "name": "MedFlow AI",
+  "description": "A modern, AI-powered application for hospital patient reception, triage, and dashboard monitoring. This MVP helps streamline patient intake by using Gemini to classify complaints and a rule-based system to assess vitals, providing a clear and prioritized view for medical staff.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

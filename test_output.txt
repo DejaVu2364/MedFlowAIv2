@@ -1,0 +1,36 @@
+
+Running 2 tests using 2 workers
+
+  ✘  1 [chromium] › tests\e2e.spec.ts:14:5 › MedFlow AI E2E › should register a new patient (3.6s)
+  ✘  2 [chromium] › tests\e2e.spec.ts:39:5 › MedFlow AI E2E › should navigate patient detail tabs (3.6s)
+
+
+  1) [chromium] › tests\e2e.spec.ts:14:5 › MedFlow AI E2E › should register a new patient ──────────
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/
+    Call log:
+    [2m  - navigating to "http://localhost:3000/", waiting until "load"[22m
+
+        at C:\Users\harik\OneDrive\Desktop\New folder\medflow-ai (7)\tests\e2e.spec.ts:5:20)
+        at C:\Users\harik\OneDrive\Desktop\New folder\medflow-ai (7)\node_modules\playwright\lib\worker\fixtureRunner.js:228:52)
+        at C:\Users\harik\OneDrive\Desktop\New folder\medflow-ai (7)\node_modules\playwright\lib\worker\testInfo.js:311:17)
+        at C:\Users\harik\OneDrive\Desktop\New folder\medflow-ai (7)\node_modules\playwright\lib\worker\workerMain.js:478:11)
+        at C:\Users\harik\OneDrive\Desktop\New folder\medflow-ai (7)\node_modules\playwright\lib\worker\workerMain.js:314:9)
+        at C:\Users\harik\OneDrive\Desktop\New folder\medflow-ai (7)\node_modules\playwright\lib\worker\workerMain.js:310:7)
+
+  2) [chromium] › tests\e2e.spec.ts:39:5 › MedFlow AI E2E › should navigate patient detail tabs ────
+
+    Error: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/
+    Call log:
+    [2m  - navigating to "http://localhost:3000/", waiting until "load"[22m
+
+        at C:\Users\harik\OneDrive\Desktop\New folder\medflow-ai (7)\tests\e2e.spec.ts:5:20)
+        at C:\Users\harik\OneDrive\Desktop\New folder\medflow-ai (7)\node_modules\playwright\lib\worker\fixtureRunner.js:228:52)
+        at C:\Users\harik\OneDrive\Desktop\New folder\medflow-ai (7)\node_modules\playwright\lib\worker\testInfo.js:311:17)
+        at C:\Users\harik\OneDrive\Desktop\New folder\medflow-ai (7)\node_modules\playwright\lib\worker\workerMain.js:478:11)
+        at C:\Users\harik\OneDrive\Desktop\New folder\medflow-ai (7)\node_modules\playwright\lib\worker\workerMain.js:314:9)
+        at C:\Users\harik\OneDrive\Desktop\New folder\medflow-ai (7)\node_modules\playwright\lib\worker\workerMain.js:310:7)
+
+  2 failed
+    [chromium] › tests\e2e.spec.ts:14:5 › MedFlow AI E2E › should register a new patient ───────────
+    [chromium] › tests\e2e.spec.ts:39:5 › MedFlow AI E2E › should navigate patient detail tabs ─────

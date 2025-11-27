@@ -1,0 +1,62 @@
+# MedFlow AI Context
+
+## Product Overview
+MedFlow AI is a medical practice management application designed to streamline patient care, triage, and clinical documentation using AI assistance. It targets medical professionals (Interns, Doctors, Admins) to manage patient lifecycles from reception to discharge.
+
+## Tech Stack
+- **Frontend**: React 19, Vite, TypeScript
+- **Backend/BaaS**: Firebase (Authentication, Firestore)
+- **AI**: Google GenAI (Gemini) via `@google/genai`
+- **Styling**: Likely CSS/SCSS (based on file list, no Tailwind config seen in root, though `index.css` exists)
+- **State Management**: React Context (`AppContext`)
+
+## Key Features & Workflows
+1.  **Authentication**: Role-based access (Intern, Doctor, Admin).
+2.  **Reception**: Patient registration and admission.
+3.  **Triage**:
+    - AI-assisted triage suggestions (Red, Yellow, Green).
+    - Department assignment.
+4.  **Patient Management (Dashboard)**:
+    - Overview of patients.
+    - Status tracking (Waiting, In Treatment, Discharged).
+5.  **Clinical Documentation (Patient Detail)**:
+    - **History & GPE**: Structured data entry with AI composition.
+    - **SOAP Notes**: AI-assisted note generation.
+    - **Rounds**: Daily round management.
+    - **Orders**: Ordering labs/medications (AI provenance tracking).
+    - **Results**: Viewing lab/imaging results.
+    - **Chat**: Context-aware chat with AI about patient data.
+6.  **Discharge**:
+    - AI-generated discharge summaries.
+    - Medication reconciliation.
+
+## Codebase Structure
+- `src/App.tsx`: Main application component, likely handles routing and context providers.
+- `src/types.ts`: Comprehensive TypeScript definitions for domain entities (Patient, User, Order, ClinicalFile, etc.).
+- `src/pages/`:
+    - `DashboardPage.tsx`: Main view.
+    - `ReceptionPage.tsx`: Patient entry.
+    - `TriagePage.tsx`: Triage workflow.
+    - `PatientDetailPage.tsx`: Core clinical workspace.
+    - `DischargeSummaryPage.tsx`: Discharge workflow.
+    - `LoginPage.tsx`: Auth.
+- `src/services/`:
+    - `geminiService.ts`: Integration with Google Gemini for AI features.
+    - `firebase.ts`: Firebase configuration and helpers.
+    - `api.ts`: Likely wrapper for backend calls.
+- `src/hooks/`: Custom React hooks.
+- `src/components/`: Reusable UI components.
+
+## Data Model (Key Entities)
+- **Patient**: Core entity with demographics, status, triage info, and links to clinical data.
+- **ClinicalFile**: Contains History, GPE, Systemic Exam data.
+- **Order**: Lab/Medication orders with status tracking.
+- **Round**: Daily clinical rounds.
+- **AuditEvent**: Logs user actions for compliance.
+
+## AI Integration Points
+- Triage suggestions.
+- SOAP note generation.
+- History composition from structured inputs.
+- Discharge summary generation.
+- Chat interface for querying patient data.

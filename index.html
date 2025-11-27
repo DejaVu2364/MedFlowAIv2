@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MedFlow AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        /* Modern Medical Slate Palette */
+        --color-background-primary: 255 255 255;
+        --color-background-secondary: 248 250 252; /* slate-50 */
+        --color-background-tertiary: 241 245 249; /* slate-100 */
+        
+        --color-text-primary: 15 23 42; /* slate-900 */
+        --color-text-secondary: 71 85 105; /* slate-600 */
+        --color-text-tertiary: 148 163 184; /* slate-400 */
+        
+        --color-border-color: 226 232 240; /* slate-200 */
+        
+        --color-brand-blue-default: 59 130 246; /* blue-500 */
+        --color-brand-blue-dark: 37 99 235; /* blue-600 */
+        --color-brand-blue-light: 239 246 255; /* blue-50 */
+        
+        --color-brand-green: 16 185 129; /* emerald-500 */
+        
+        --color-input-text: 15 23 42;
+      }
+
+      html.dark {
+        --color-background-primary: 15 23 42; /* slate-900 */
+        --color-background-secondary: 30 41 59; /* slate-800 */
+        --color-background-tertiary: 51 65 85; /* slate-700 */
+        
+        --color-text-primary: 248 250 252; /* slate-50 */
+        --color-text-secondary: 148 163 184; /* slate-400 */
+        --color-text-tertiary: 100 116 139; /* slate-500 */
+        
+        --color-border-color: 51 65 85; /* slate-700 */
+
+        --color-brand-blue-default: 96 165 250;
+        --color-brand-blue-dark: 59 130 246;
+        --color-brand-blue-light: 30 58 138;
+        
+        --color-brand-green: 52 211 153;
+        
+        --color-input-text: 248 250 252; 
+      }
+
+      body {
+        background-color: rgb(var(--color-background-secondary));
+        background-image: 
+          radial-gradient(at 0% 0%, rgba(var(--color-brand-blue-default), 0.03) 0px, transparent 50%),
+          radial-gradient(at 100% 100%, rgba(var(--color-brand-blue-default), 0.03) 0px, transparent 50%);
+        background-attachment: fixed;
+      }
+
+      /* Active Monitoring Pulse */
+      @keyframes pulse-red {
+        0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); border-color: rgba(239, 68, 68, 0.5); }
+        70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 0.2); }
+        100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: rgba(239, 68, 68, 0); }
+      }
+      .animate-pulse-red {
+        animation: pulse-red 2s infinite;
+      }
+      
+      .ai-input {
+        background-color: rgba(240, 249, 255, 0.5); /* blue-50 with opacity */
+        border-color: rgba(147, 197, 253, 0.5); /* blue-300 */
+        backdrop-filter: blur(4px);
+      }
+      html.dark .ai-input {
+        background-color: rgba(30, 58, 138, 0.2); 
+        border-color: rgba(59, 130, 246, 0.3);
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgb(var(--color-border-color)); 
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgb(var(--color-text-tertiary)); 
+      }
+      
+      /* Utilities */
+      .glass {
+        background: rgba(var(--color-background-primary), 0.8);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+    </style>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            boxShadow: {
+              'soft': '0 2px 10px rgba(0, 0, 0, 0.03)',
+              'medium': '0 4px 20px rgba(0, 0, 0, 0.06)',
+              'glow': '0 0 20px rgba(59, 130, 246, 0.15)',
+            },
+            colors: {
+              'background-primary': 'rgb(var(--color-background-primary) / <alpha-value>)',
+              'background-secondary': 'rgb(var(--color-background-secondary) / <alpha-value>)',
+              'background-tertiary': 'rgb(var(--color-background-tertiary) / <alpha-value>)',
+              
+              'text-primary': 'rgb(var(--color-text-primary) / <alpha-value>)',
+              'text-secondary': 'rgb(var(--color-text-secondary) / <alpha-value>)',
+              'text-tertiary': 'rgb(var(--color-text-tertiary) / <alpha-value>)',
+              'input-text': 'rgb(var(--color-input-text) / <alpha-value>)',
+
+              'border-color': 'rgb(var(--color-border-color) / <alpha-value>)',
+
+              'brand-blue': {
+                light: 'rgb(var(--color-brand-blue-light) / <alpha-value>)',
+                DEFAULT: 'rgb(var(--color-brand-blue-default) / <alpha-value>)',
+                dark: 'rgb(var(--color-brand-blue-dark) / <alpha-value>)',
+              },
+              'brand-green': 'rgb(var(--color-brand-green) / <alpha-value>)',
+              
+              'triage-red': '#EF4444',
+              'triage-yellow': '#F59E0B',
+              'triage-green': '#10B981',
+              'triage-none': '#94A3B8',
+            },
+          },
+        },
+      };
+    </script>
+
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-background-secondary text-text-primary antialiased selection:bg-brand-blue/20 selection:text-brand-blue-dark">
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
