@@ -480,7 +480,12 @@ export const generateStructuredDischargeSummary = async (patient: Patient): Prom
             }
         });
 
-        return JSON.parse(response.text);
+        const result = JSON.parse(response.text);
+        // Sanitize dischargeMeds to remove nulls which might cause UI crashes
+        if (Array.isArray(result.dischargeMeds)) {
+            result.dischargeMeds = result.dischargeMeds.filter((m: any) => m !== null && m !== undefined);
+        }
+        return result;
     } catch (error) {
         console.error("Error generating structured discharge summary:", error);
         throw error;
@@ -793,10 +798,8 @@ export const checkOrderSafety = async (newOrder: Order, patient: Patient): Promi
 
     try {
         const response = await ai.models.generateContent({
-            model: flashModel,
-            contents: `Analyze if the new order is safe for this patient. Check for drug-drug interactions, allergy contraindications, or condition contraindications.
-            Return JSON: { "safe": boolean, "warning": string (if unsafe, explain why briefly) }
-            \n\nContext: ${context}`,
+            model: proModel,
+            contents: `Review the following medication order for safety against the patient's record. Check for allergies, drug-condition interactions, and major drug-drug interactions. \n\nContext: ${context}`,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -812,9 +815,81 @@ export const checkOrderSafety = async (newOrder: Order, patient: Patient): Promi
         return JSON.parse(response.text);
     } catch (error) {
         console.error("Error checking order safety:", error);
-        return { safe: true }; // Fail open to avoid blocking care
+        return { safe: true }; // Default to safe if AI fails, to not block workflow (with caution)
     }
 };
+
+// --- SCRIBE & DRAFTING (Phase 4) ---
+
+export interface SOAPDraftResponse {
+    subjective: string;
+    objective: string;
+    assessment: string;
+    plan: string;
+    suggestedOrders: string[];
+}
+
+export const generateSOAPDraft = async (transcript: string): Promise<SOAPDraftResponse> => {
+    // Check for API Key (Mocking Strategy)
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey || apiKey.includes('YOUR_API_KEY')) {
+        console.log("Mocking Gemini Response for Scribe...");
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay
+        return {
+            subjective: "58y Male presents with acute retrosternal chest pain started 2 hours ago. Radiating to left arm. Associated with sweating. No nausea/vomiting. History of HTN.",
+            objective: "Pt looks anxious. Diaphoretic. BP 160/90, HR 98 regular. Chest clear. CVS: S1 S2 heard, no murmurs. Abdomen soft.",
+            assessment: "Acute Coronary Syndrome (ACS) - NSTE-ACS likely. Differential: Stable Angina, GERD.",
+            plan: "Immediate ECG. Troponin T. Aspirin 300mg stat. Clopidogrel 300mg stat. Admit to CCU.",
+            suggestedOrders: ["ECG", "Troponin I", "CBC", "Lipid Profile", "Aspirin 300mg PO", "Clopidogrel 300mg PO"]
+        };
+    }
+
+    try {
+        const prompt = `
+        Act as an expert medical scribe. Convert the following transcript into a structured clinical note (SOAP format).
+        Return purely JSON: { subjective, objective, assessment, plan, suggestedOrders: string[] }.
+        
+        Transcript: "${transcript}"
+        `;
+
+        const response = await ai.models.generateContent({
+            model: proModel,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        subjective: { type: Type.STRING },
+                        objective: { type: Type.STRING },
+                        assessment: { type: Type.STRING },
+                        plan: { type: Type.STRING },
+                        suggestedOrders: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    }
+                }
+            }
+        });
+
+        const text = response.text;
+        return JSON.parse(text) as SOAPDraftResponse;
+    } catch (error) {
+        console.error("Gemini Scribe Error:", error);
+        // Fallback Mock on Error
+        return {
+            subjective: "Error processing transcript.",
+            objective: "Unable to extract objective findings.",
+            assessment: "Processing Error.",
+            plan: "Please review transcript manually.",
+            suggestedOrders: []
+        };
+    }
+};
+
+export const suggestRevenueFlags = async (notes: string, orders: string[]): Promise<string[]> => {
+    // Placeholder for Phase 5 logic
+    return [];
+};
+
 
 export const generateClinicalFileFromTranscript = async (transcript: string): Promise<Partial<ClinicalFileSections>> => {
     try {

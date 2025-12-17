@@ -6,6 +6,7 @@ import { DischargeSummary } from '../types';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Button } from '../components/ui/button';
 import { SparklesIcon, CheckBadgeIcon, DocumentTextIcon, XMarkIcon, PlusIcon, PencilIcon, ExclamationTriangleIcon } from '../components/icons';
+import { AIDischargeSummaryPanel } from '../components/clinical/AIDischargeSummaryPanel';
 
 // --- COMPONENTS ---
 
@@ -57,30 +58,28 @@ const DischargeSummaryPage: React.FC = () => {
     // Initialize or Load Draft
     useEffect(() => {
         if (!patient) {
-            // If patient not found (or loading), we might want to wait or redirect.
-            // For now, if patients are loaded and still not found, redirect.
             if (!isLoading && patients.length > 0) {
                 navigate('/');
             }
             return;
         }
 
-        if (patient.dischargeSummary) {
+        if (patient.dischargeSummary && !summary.id) {
             setSummary(patient.dischargeSummary);
-        } else if (!isGenerating && !summary.id) {
-            // Auto-trigger generation on first load if empty
-            setIsGenerating(true);
-            generateDischargeSummary(patient.id).then(() => setIsGenerating(false));
         }
-    }, [patient, generateDischargeSummary, isGenerating, summary.id, navigate, isLoading, patients.length]);
+    }, [patient, summary.id, navigate, isLoading, patients.length]);
 
-    // Sync context updates to local state when AI finishes
-    useEffect(() => {
-        if (patient?.dischargeSummary && !summary.id) {
-            setSummary(patient.dischargeSummary);
-            setAiDraft(patient.dischargeSummary); // Initially, AI draft is what we have
-        }
-    }, [patient?.dischargeSummary, summary.id]);
+    const handleAIDraftGenerated = (draft: Partial<DischargeSummary>) => {
+        setSummary(prev => ({
+            ...prev,
+            ...draft,
+            // Preserve existing ID if any, or let Save generate it. 
+            // Actually Save generates ID if missing? 
+            // PatientContext.saveDischargeSummary overwrites.
+            // If we have an existing summary, we keep its ID.
+            id: prev.id || draft.id,
+        }));
+    };
 
     const handleChange = (field: keyof DischargeSummary, value: any) => {
         setSummary(prev => ({ ...prev, [field]: value }));
@@ -88,6 +87,11 @@ const DischargeSummaryPage: React.FC = () => {
 
     const handleMedsChange = (index: number, field: string, value: string) => {
         const newMeds = [...(summary.dischargeMeds || [])];
+        if (!newMeds[index]) {
+            // If the item is null/undefined (e.g. from AI hallucination), initialize it
+            // @ts-ignore
+            newMeds[index] = { name: '', dosage: '', frequency: '', duration: '', instructions: '' };
+        }
         // @ts-ignore
         newMeds[index] = { ...newMeds[index], [field]: value };
         handleChange('dischargeMeds', newMeds);
@@ -105,7 +109,7 @@ const DischargeSummaryPage: React.FC = () => {
 
     // --- VALIDATION ---
     const validation = useMemo(() => {
-        const hasValidMeds = (summary.dischargeMeds?.length || 0) > 0 && summary.dischargeMeds?.some(m => m.name.trim().length > 0);
+        const hasValidMeds = (summary.dischargeMeds?.length || 0) > 0 && summary.dischargeMeds?.some(m => m && m.name && m.name.trim().length > 0);
         return {
             finalDiagnosis: !!summary.finalDiagnosis,
             courseInHospital: !!summary.courseInHospital,
@@ -199,18 +203,13 @@ const DischargeSummaryPage: React.FC = () => {
                                 </li>
                             ))}
                         </ul>
-                        {isGenerating && (
-                            <div className="mt-6 p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs rounded-lg border border-blue-100 flex items-center gap-2">
-                                <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                AI Drafting in progress...
-                            </div>
-                        )}
-                        {!isGenerating && !summary.finalDiagnosis && (
-                            <div className="mt-6 p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs rounded-lg border border-yellow-100 flex items-center gap-2">
-                                <ExclamationTriangleIcon className="w-4 h-4" />
-                                AI Draft incomplete. Please fill manually.
-                            </div>
-                        )}
+
+                        <div className="mt-6">
+                            <AIDischargeSummaryPanel
+                                patient={patient}
+                                onDraftGenerated={handleAIDraftGenerated}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -294,16 +293,19 @@ const DischargeSummaryPage: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border-color text-text-primary">
-                                    {summary.dischargeMeds?.map((med, idx) => (
-                                        <tr key={idx} className="group hover:bg-background-secondary/30">
-                                            <td className="p-2"><input type="text" value={med.name} onChange={e => handleMedsChange(idx, 'name', e.target.value)} className="w-full bg-transparent outline-none font-medium" placeholder="Drug Name" /></td>
-                                            <td className="p-2"><input type="text" value={med.dosage} onChange={e => handleMedsChange(idx, 'dosage', e.target.value)} className="w-full bg-transparent outline-none" placeholder="e.g. 500mg" /></td>
-                                            <td className="p-2"><input type="text" value={med.frequency} onChange={e => handleMedsChange(idx, 'frequency', e.target.value)} className="w-full bg-transparent outline-none" placeholder="e.g. BD" /></td>
-                                            <td className="p-2"><input type="text" value={med.duration} onChange={e => handleMedsChange(idx, 'duration', e.target.value)} className="w-full bg-transparent outline-none" placeholder="e.g. 5 days" /></td>
-                                            <td className="p-2"><input type="text" value={med.instructions} onChange={e => handleMedsChange(idx, 'instructions', e.target.value)} className="w-full bg-transparent outline-none text-text-secondary" placeholder="e.g. After food" /></td>
-                                            <td className="p-2 text-center"><button onClick={() => removeMed(idx)} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><XMarkIcon className="w-4 h-4" /></button></td>
-                                        </tr>
-                                    ))}
+                                    {summary.dischargeMeds?.map((med, idx) => {
+                                        if (!med) return null;
+                                        return (
+                                            <tr key={idx} className="group hover:bg-background-secondary/30">
+                                                <td className="p-2"><input type="text" value={med.name || ''} onChange={e => handleMedsChange(idx, 'name', e.target.value)} className="w-full bg-transparent outline-none font-medium" placeholder="Drug Name" /></td>
+                                                <td className="p-2"><input type="text" value={med.dosage || ''} onChange={e => handleMedsChange(idx, 'dosage', e.target.value)} className="w-full bg-transparent outline-none" placeholder="e.g. 500mg" /></td>
+                                                <td className="p-2"><input type="text" value={med.frequency || ''} onChange={e => handleMedsChange(idx, 'frequency', e.target.value)} className="w-full bg-transparent outline-none" placeholder="e.g. BD" /></td>
+                                                <td className="p-2"><input type="text" value={med.duration || ''} onChange={e => handleMedsChange(idx, 'duration', e.target.value)} className="w-full bg-transparent outline-none" placeholder="e.g. 5 days" /></td>
+                                                <td className="p-2"><input type="text" value={med.instructions || ''} onChange={e => handleMedsChange(idx, 'instructions', e.target.value)} className="w-full bg-transparent outline-none text-text-secondary" placeholder="e.g. After food" /></td>
+                                                <td className="p-2 text-center"><button onClick={() => removeMed(idx)} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><XMarkIcon className="w-4 h-4" /></button></td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                             <button onClick={addMed} className="mt-4 flex items-center gap-2 text-xs font-bold text-brand-blue hover:text-brand-blue-dark"><PlusIcon className="w-4 h-4" /> Add Medication</button>
@@ -357,7 +359,7 @@ const DischargeSummaryPage: React.FC = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

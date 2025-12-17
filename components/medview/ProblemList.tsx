@@ -33,7 +33,11 @@ export const ProblemList: React.FC<ProblemListProps> = ({ problems, onAdd, onEdi
                                     variant="outline"
                                     className={cn(
                                         "text-[10px] px-1.5 py-0 h-4 font-normal",
-                                        problem.status === 'active' ? "bg-green-50 text-green-700 border-green-200" : "text-muted-foreground"
+                                        {
+                                            "bg-red-50 text-red-700 border-red-200": problem.status === 'urgent',
+                                            "bg-yellow-50 text-yellow-700 border-yellow-200": problem.status === 'monitor',
+                                            "bg-green-50 text-green-700 border-green-200": problem.status === 'improving'
+                                        }[problem.status]
                                     )}
                                 >
                                     {problem.status}

@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Patient, AuditEvent, User, PatientStatus, Vitals, VitalsRecord, SOAPNote, TeamNote, Checklist, Order, OrderCategory, Round, ClinicalFileSections, AISuggestionHistory, HistorySectionData, Allergy, VitalsMeasurements, DischargeSummary, ChiefComplaint } from '../types';
+import { generateSyntheaData } from '../utils/syntheaImporter';
 import { seedPatients, calculateTriageFromVitals, logAuditEventToServer } from '../services/api';
 import { subscribeToPatients, savePatient, updatePatientInDb, logAuditToDb, getIsFirebaseInitialized } from '../services/firebase';
 import { classifyComplaint, suggestOrdersFromClinicalFile, generateStructuredDischargeSummary, generateOverviewSummary, summarizeClinicalFile, summarizeVitals as summarizeVitalsFromService, crossCheckRound, getFollowUpQuestions as getFollowUpQuestionsFromService, composeHistoryParagraph, generateHandoverSummary as generateHandoverSummaryService, answerWithRAG, scanForMissingInfo, summarizeSection as summarizeSectionService, crossCheckClinicalFile, checkOrderSafety } from '../services/geminiService';
@@ -43,12 +44,21 @@ export const usePatientData = (currentUser: User | null) => {
                     setIsLoading(false);
                 });
             } else {
-                // Local Mode Fallback
+                // Local Mode Fallback with Synthea & Persistence
                 try {
-                    console.log("DEBUG: Seeding patients...");
-                    const initialPatients = await seedPatients();
-                    console.log("DEBUG: Seeded patients:", initialPatients.length);
-                    setPatients(initialPatients);
+                    const STORAGE_KEY = 'medflow_local_patients';
+                    const stored = localStorage.getItem(STORAGE_KEY);
+
+                    if (stored) {
+                        console.log("DEBUG: Loading from LocalStorage...");
+                        setPatients(JSON.parse(stored));
+                    } else {
+                        console.log("DEBUG: Seeding Synthea patients...");
+                        const initialPatients = generateSyntheaData();
+                        console.log("DEBUG: Seeded patients:", initialPatients.length);
+                        setPatients(initialPatients);
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(initialPatients));
+                    }
                 } catch (e) {
                     console.error("DEBUG: Seed failed", e);
                     setError('Failed to load initial data.');
@@ -70,6 +80,21 @@ export const usePatientData = (currentUser: User | null) => {
             if (unsubscribe) unsubscribe();
         };
     }, [currentUser]);
+
+    // Persist to LocalStorage (Local Mode Only)
+    useEffect(() => {
+        if (!getIsFirebaseInitialized() && patients.length > 0) {
+            localStorage.setItem('medflow_local_patients', JSON.stringify(patients));
+        }
+    }, [patients]);
+
+    const resetSystem = useCallback(() => {
+        console.log("Global System Reset Triggered");
+        localStorage.removeItem('medflow_local_patients');
+        const freshData = generateSyntheaData();
+        setPatients(freshData);
+        addToast("Simulation Reset Complete. Welcome to MedFlow OS.", "info");
+    }, [addToast]);
 
     // --- Helper to update state AND firebase ---
     const updateStateAndDb = useCallback((patientId: string, updater: (p: Patient) => Patient) => {
@@ -604,6 +629,7 @@ export const usePatientData = (currentUser: User | null) => {
         updateStateAndDb, generateDischargeSummary, saveDischargeSummary, finalizeDischarge, generatePatientOverview, generateHandoverSummary,
         summarizePatientClinicalFile, formatHpi, checkMissingInfo, summarizeSection, getFollowUpQuestions, updateFollowUpAnswer: updateFollowUpAnswerCorrect, crossCheckFile,
         addOrderToPatient, updateOrder, sendAllDrafts,
-        createDraftRound, updateDraftRound, signOffRound, getRoundContradictions
+        createDraftRound, updateDraftRound, signOffRound, getRoundContradictions,
+        resetSystem
     };
 };

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
-import { HomeIcon, UserPlusIcon, ClipboardDocumentListIcon, ChatBubbleLeftRightIcon, SunIcon, MoonIcon, UserCircleIcon, XMarkIcon, UsersIcon } from '@heroicons/react/24/outline';
+import { HomeIcon, UserPlusIcon, ClipboardDocumentListIcon, ChatBubbleLeftRightIcon, SunIcon, MoonIcon, UserCircleIcon, XMarkIcon, UsersIcon, ChartBarSquareIcon } from '@heroicons/react/24/outline';
 import { getIsFirebaseInitialized } from '../services/firebase';
 import { Button } from './ui/button';
 import { FirebaseStatus } from './common/FirebaseStatus';
@@ -26,6 +26,10 @@ const Header: React.FC<HeaderProps> = ({ onToggleChat }) => {
         { name: 'Triage', path: '/triage', icon: <ClipboardDocumentListIcon />, testId: 'nav-triage' },
         { name: 'Consultant', path: '/consultant', icon: <UsersIcon />, testId: 'nav-consultant' },
     ];
+
+    if (currentUser.role === 'Admin') {
+        navigation.push({ name: 'Revenue', path: '/admin/revenue', icon: <ChartBarSquareIcon />, testId: 'nav-revenue' });
+    }
 
     const handleLogout = async () => {
         try {

@@ -4,11 +4,9 @@
 
 @layer base {
   :root {
-    /* Medical Slate Theme - Light */
-    --background: 210 40% 98%;
-    /* Soft Blue-Grey */
-    --foreground: 222 47% 11%;
-    /* Deep Navy */
+    /* Medical Calm Theme - Light (Teal/Slate) */
+    --background: 210 40% 98%; /* Slate-50 */
+    --foreground: 222 47% 11%; /* Slate-900 */
 
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
@@ -16,9 +14,9 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 221 83% 53%;
-    /* Hospital Blue */
-    --primary-foreground: 210 40% 98%;
+    /* Primary: Teal-600 */
+    --primary: 175 84% 32%; 
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222 47% 11%;
@@ -26,24 +24,27 @@
     --muted: 210 40% 96.1%;
     --muted-foreground: 215 16% 47%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 175 84% 95%; /* Teal-50 for subtle accents */
+    --accent-foreground: 175 84% 32%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 221 83% 53%;
+    --ring: 175 84% 32%; /* Match primary */
 
     --radius: 0.75rem;
-    /* Modern rounded look */
 
-    /* Data Viz Colors */
-    --chart-1: 221 83% 53%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
+    /* Semantic Draft Colors (Amber) */
+    --draft: 48 100% 96%; /* Amber-50 */
+    --draft-foreground: 38 92% 50%; /* Amber-600 */
+
+    /* Data Viz */
+    --chart-1: 175 84% 32%; /* Teal */
+    --chart-2: 210 40% 60%; /* Slate */
+    --chart-3: 48 96% 53%; /* Amber */
+    --chart-4: 199 89% 48%;
     --chart-5: 27 87% 67%;
   }
 

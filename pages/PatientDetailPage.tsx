@@ -28,11 +28,12 @@ import { Input } from '../components/ui/input';
 import { cn } from '../lib/utils';
 
 // External Components
-import ClinicalFileRedesigned from '../components/clinical/ClinicalFileRedesigned';
+import ClinicalFileV2 from '../components/clinical/ClinicalFileV2';
 import MedViewRedesigned from '../components/medview/MedViewRedesigned';
 import { VitalsRedesigned } from '../components/vitals/VitalsRedesigned';
 import { RoundsRedesigned } from '../components/rounds/RoundsRedesigned';
 import { PatientJourney } from '../components/patient/PatientJourney';
+
 
 // --- PATIENT HEADER ---
 
@@ -75,9 +76,9 @@ const PatientHeader: React.FC<{ patient: Patient; onTabChange: (tab: any) => voi
                         <Activity className="w-4 h-4 mr-2" />
                         Vitals
                     </Button>
-                    <Button variant="default" size="sm" onClick={() => navigate(`/discharge/${patient.id}`)}>
+                    <Button variant={patient.dischargeSummary ? "outline" : "default"} size="sm" onClick={() => navigate(`/discharge/${patient.id}`)}>
                         <FileText className="w-4 h-4 mr-2" />
-                        Discharge
+                        {patient.dischargeSummary ? "View Discharge" : "Prepare Discharge"}
                     </Button>
                 </div>
             </div>
@@ -217,13 +218,27 @@ const OrdersTab: React.FC<{ patient: Patient }> = React.memo(({ patient }) => {
                         Sign & Send
                     </Button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/5">
                     {filteredOrders.length > 0 ? filteredOrders.map(order => (
-                        <div key={order.orderId} className="flex items-center justify-between p-3 rounded-lg border border-border/50 dark:border-white/5 bg-background shadow-sm">
+                        <div
+                            key={order.orderId}
+                            className={cn(
+                                "flex items-center justify-between p-3 rounded-lg border shadow-sm transition-all duration-200",
+                                order.status === 'draft'
+                                    ? "bg-draft border-draft-foreground/30 shadow-[0_2px_8px_rgba(251,191,36,0.05)]"
+                                    : "bg-background border-border/50 hover:shadow-md hover:border-border/80"
+                            )}
+                        >
                             <div className="flex-1 mr-4">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-medium text-sm">{order.label}</span>
-                                    {order.status === 'draft' && <Badge variant="outline" className="text-[10px] bg-yellow-50 text-yellow-700 border-yellow-200">Draft</Badge>}
+                                    <span className={cn("font-medium text-sm", order.status === 'draft' ? "text-draft-foreground font-semibold" : "text-foreground")}>
+                                        {order.label}
+                                    </span>
+                                    {order.status === 'draft' && (
+                                        <Badge variant="outline" className="text-[10px] bg-draft-foreground/10 text-draft-foreground border-draft-foreground/20 font-medium px-2">
+                                            Draft
+                                        </Badge>
+                                    )}
                                 </div>
                                 {order.category === 'medication' && (
                                     <Input
@@ -231,7 +246,7 @@ const OrdersTab: React.FC<{ patient: Patient }> = React.memo(({ patient }) => {
                                         placeholder="Add instructions..."
                                         value={order.instructions || ''}
                                         onChange={(e) => updateOrder(patient.id, order.orderId, { instructions: e.target.value })}
-                                        className="mt-1 w-full h-8 text-xs bg-transparent border-border/50 focus:ring-primary/20"
+                                        className="mt-1 w-full h-8 text-xs bg-white/50 border-0 shadow-none focus-visible:ring-1 focus-visible:ring-primary/30"
                                     />
                                 )}
                             </div>
@@ -239,7 +254,7 @@ const OrdersTab: React.FC<{ patient: Patient }> = React.memo(({ patient }) => {
                                 <select
                                     value={order.priority}
                                     onChange={e => updateOrder(patient.id, order.orderId, { priority: e.target.value as OrderPriority })}
-                                    className="h-8 text-xs bg-background border border-input rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                    className="h-8 text-xs bg-transparent border-0 rounded-md px-2 py-1 focus:outline-none cursor-pointer font-medium text-muted-foreground hover:text-foreground hover:bg-black/5"
                                 >
                                     <option value="routine">Routine</option>
                                     <option value="urgent">Urgent</option>
@@ -248,16 +263,22 @@ const OrdersTab: React.FC<{ patient: Patient }> = React.memo(({ patient }) => {
                                 <Button
                                     size="sm"
                                     variant={order.status === 'draft' ? 'default' : 'secondary'}
+                                    className={cn(
+                                        "h-8 px-4 text-xs font-semibold shadow-sm",
+                                        order.status === 'draft' && "bg-draft-foreground hover:bg-draft-foreground/90 text-white border-0"
+                                    )}
                                     onClick={() => updateOrder(patient.id, order.orderId, { status: 'sent' })}
                                 >
-                                    {order.status === 'draft' ? 'Send' : 'Update'}
+                                    {order.status === 'draft' ? 'Sign & Send' : 'Update'}
                                 </Button>
                             </div>
                         </div>
                     )) : (
-                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                            <ClipboardList className="w-12 h-12 mb-3 opacity-20" />
-                            <p className="text-sm">No active orders</p>
+                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground/40">
+                            <div className="p-4 rounded-full bg-muted/20 mb-3">
+                                <ClipboardList className="w-8 h-8 opacity-50" />
+                            </div>
+                            <p className="text-sm font-medium">No active orders</p>
                         </div>
                     )}
                 </div>
@@ -336,7 +357,7 @@ const PatientDetailPage: React.FC = () => {
                 </div>
 
                 <div className="min-h-[500px]">
-                    {activeTab === 'clinical' && currentUser && <ClinicalFileRedesigned patient={patient} />}
+                    {activeTab === 'clinical' && <ClinicalFileV2 patient={patient} />}
                     {activeTab === 'orders' && <OrdersTab patient={patient} />}
                     {activeTab === 'vitals' && <VitalsRedesigned patient={patient} />}
                     {activeTab === 'medview' && <MedViewRedesigned patient={patient} />}

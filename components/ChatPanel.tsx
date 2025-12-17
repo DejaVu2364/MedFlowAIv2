@@ -1,6 +1,9 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { usePatient } from '../contexts/PatientContext';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { VoiceLanguageToggle } from './VoiceLanguageToggle';
+import { MicrophoneIcon } from './icons'; // Assuming shared icons
+import { cn } from '../lib/utils';
 
 interface ChatPanelProps {
     isOpen: boolean;
@@ -11,6 +14,25 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose }) => {
     const { chatHistory, sendChatMessage, selectedPatientId } = usePatient();
     const [message, setMessage] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Voice Integration
+    const {
+        isListening,
+        transcript,
+        startListening,
+        stopListening,
+        resetTranscript,
+        language,
+        setLanguage,
+        hasSupport
+    } = useSpeechRecognition();
+
+    useEffect(() => {
+        if (transcript) {
+            setMessage(prev => (prev ? prev + ' ' : '') + transcript);
+            resetTranscript();
+        }
+    }, [transcript, resetTranscript]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -23,6 +45,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose }) => {
         if (message.trim()) {
             sendChatMessage(message, selectedPatientId);
             setMessage('');
+        }
+    };
+
+    const handleVoiceToggle = () => {
+        if (isListening) {
+            stopListening();
+        } else {
+            startListening();
         }
     };
 
@@ -61,16 +91,47 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose }) => {
                 ))}
                 <div ref={messagesEndRef} />
             </div>
-            <div className="p-4 border-t border-border-color">
-                <form onSubmit={handleSubmit} className="flex gap-2">
-                    <input
-                        type="text"
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Ask something..."
-                        className="flex-1 px-3 py-2 border border-border-color rounded-md shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm bg-background-primary text-input-text"
-                        aria-label="Chat input"
-                    />
+
+            {/* Input Area */}
+            <div className="p-4 border-t border-border-color space-y-2">
+
+                {/* Voice Controls */}
+                {hasSupport && (
+                    <div className="flex justify-between items-center px-1">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Voice Input</span>
+                        <VoiceLanguageToggle language={language} onLanguageChange={setLanguage} />
+                    </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="flex gap-2 items-center">
+                    <div className="relative flex-1">
+                        <input
+                            type="text"
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            placeholder={isListening ? "Listening..." : "Ask something..."}
+                            className={cn(
+                                "w-full px-3 py-2 pr-10 border rounded-md shadow-sm focus:outline-none focus:ring-brand-blue focus:border-brand-blue sm:text-sm bg-background-primary text-input-text transition-colors",
+                                isListening && "border-red-400 ring-1 ring-red-400 bg-red-50/10 placeholder:text-red-400"
+                            )}
+                            aria-label="Chat input"
+                        />
+                        {hasSupport && (
+                            <button
+                                type="button"
+                                onClick={handleVoiceToggle}
+                                className={cn(
+                                    "absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-all",
+                                    isListening
+                                        ? "text-red-500 animate-pulse bg-red-100"
+                                        : "text-gray-400 hover:text-brand-blue hover:bg-gray-100"
+                                )}
+                                title="Toggle Voice"
+                            >
+                                <MicrophoneIcon className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
                     <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-blue rounded-md shadow-sm hover:bg-brand-blue-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue">
                         Send
                     </button>

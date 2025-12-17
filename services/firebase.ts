@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, setDoc, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { Patient, AuditEvent } from '../types';
 
@@ -29,6 +29,16 @@ try {
         const app = initializeApp(firebaseConfig);
         db = getFirestore(app);
         auth = getAuth(app);
+
+        // Enable Offline Persistence (Non-blocking)
+        enableMultiTabIndexedDbPersistence(db).catch((err) => {
+            if (err.code == 'failed-precondition') {
+                console.warn('Persistence failed: Multiple tabs open');
+            } else if (err.code == 'unimplemented') {
+                console.warn('Persistence is not available in this browser');
+            }
+        });
+
         isFirebaseInitialized = true;
         console.log("✅ Firebase initialized successfully");
     } else {

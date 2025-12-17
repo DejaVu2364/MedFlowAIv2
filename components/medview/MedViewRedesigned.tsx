@@ -16,6 +16,7 @@ import { ProblemList } from './ProblemList';
 import { KeyTrends } from './KeyTrends';
 import { AITaskList } from './AITaskList';
 import { HandoverCard } from './HandoverCard';
+import { RevenueAuditWidget } from '../RevenueAuditWidget';
 import { cn } from '../../lib/utils';
 
 // --- SUB-SECTIONS ---
@@ -75,13 +76,20 @@ const PatientHeader: React.FC<{ patient: Patient }> = ({ patient }) => {
 };
 
 const TimelineCard: React.FC<{ patient: Patient }> = ({ patient }) => {
-    // Mock events
-    const events = [
-        { time: '21:15', text: 'BP rose to 170/100 → Hydralazine given', icon: '⚠️', color: 'text-destructive' },
-        { time: '22:00', text: 'Vomited once → Ondansetron given', icon: '🤮', color: 'text-orange-500' },
-        { time: '01:30', text: 'Fever spike to 38.6°C → Paracetamol administered', icon: '🌡️', color: 'text-destructive' },
-        { time: '04:00', text: 'SpO₂ dropped to 92% → Oxygen started', icon: '🫁', color: 'text-blue-500' },
-    ];
+    // Mock events - REMOVED for production readiness
+    // In a real app, this would come from patient.timeline or a specific 'events' field
+    const events: { time: string; text: string; icon: string; color: string }[] = [];
+
+    if (events.length === 0) {
+        return (
+            <Card className="shadow-sm border-dashed border-border/50">
+                <CardContent className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                    <ClockIcon className="w-8 h-8 mb-2 opacity-50" />
+                    <p>No recent timeline events</p>
+                </CardContent>
+            </Card>
+        );
+    }
 
     return (
         <Card className="shadow-sm hover:shadow-md transition-all duration-200 border-border/50">
@@ -111,6 +119,23 @@ const TimelineCard: React.FC<{ patient: Patient }> = ({ patient }) => {
 
 
 const MedReviewCard: React.FC<{ patient: Patient }> = ({ patient }) => {
+    // Placeholder logic for empty state
+    const hasMeds = false;
+
+    if (!hasMeds) {
+        return (
+            <Card className="shadow-sm border-dashed border-border/50">
+                <CardHeader className="flex flex-row items-center gap-2 pb-2">
+                    <BeakerIcon className="w-5 h-5 text-muted-foreground" />
+                    <CardTitle className="text-base font-semibold">Medication Review</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center justify-center py-6 text-muted-foreground">
+                    <p className="text-sm">No active medications</p>
+                </CardContent>
+            </Card>
+        );
+    }
+
     return (
         <Card className="shadow-sm hover:shadow-md transition-all duration-200 border-border/50">
             <CardHeader className="flex flex-row items-center gap-2 pb-2">
@@ -151,20 +176,11 @@ const MedReviewCard: React.FC<{ patient: Patient }> = ({ patient }) => {
 const MedViewRedesigned: React.FC<{ patient: Patient }> = ({ patient }) => {
     const { generatePatientOverview, updateStateAndDb, isLoading } = usePatient();
 
-    // Mock Changes Data
-    const changes: { category: 'vitals' | 'labs' | 'symptoms' | 'meds'; description: string; trend?: 'up' | 'down' | 'stable'; severity?: 'high' | 'medium' | 'low' }[] = [
-        { category: 'vitals', description: 'HR increased 76 -> 92 bpm', trend: 'up', severity: 'medium' },
-        { category: 'labs', description: 'CRP elevated (24 -> 62)', trend: 'up', severity: 'high' },
-        { category: 'symptoms', description: 'Headache improved, Vomiting resolved', trend: 'stable', severity: 'low' },
-        { category: 'meds', description: 'Ondansetron added for nausea', trend: 'stable' }
-    ];
+    // Mock Changes Data - REMOVED
+    const changes: { category: 'vitals' | 'labs' | 'symptoms' | 'meds'; description: string; trend?: 'up' | 'down' | 'stable'; severity?: 'high' | 'medium' | 'low' }[] = [];
 
-    // Mock Tasks Data
-    const [tasks, setTasks] = useState<{ id: string; description: string; priority: 'high' | 'medium' | 'low'; completed: boolean }[]>([
-        { id: '1', description: 'Review Blood Culture (24h)', priority: 'high', completed: false },
-        { id: '2', description: 'Check wound dressing', priority: 'medium', completed: false },
-        { id: '3', description: 'Discharge planning', priority: 'low', completed: false },
-    ]);
+    // Mock Tasks Data - REMOVED
+    const [tasks, setTasks] = useState<{ id: string; description: string; priority: 'high' | 'medium' | 'low'; completed: boolean }[]>([]);
 
     const toggleTask = (id: string) => {
         setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
@@ -221,6 +237,7 @@ const MedViewRedesigned: React.FC<{ patient: Patient }> = ({ patient }) => {
                         )}
                     </div>
                     <div className="space-y-8">
+                        <RevenueAuditWidget patient={patient} />
                         <ProblemList
                             problems={patient.activeProblems || []}
                             onAdd={addProblem}

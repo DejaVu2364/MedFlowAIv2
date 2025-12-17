@@ -9,6 +9,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { TriageBadge } from '../components/common/TriageBadge';
+import { FocusFeed } from '../components/FocusFeed';
+import { PatientList } from '../components/PatientList';
 import { cn } from '../lib/utils';
 
 const StatCard: React.FC<{ label: string; value: number | string; icon: React.ElementType; trend?: string; trendUp?: boolean; colorClass?: string; bgClass?: string }> = ({ label, value, icon: Icon, trend, trendUp, colorClass, bgClass }) => (
@@ -32,50 +34,7 @@ const StatCard: React.FC<{ label: string; value: number | string; icon: React.El
     </Card>
 );
 
-const PatientList: React.FC<{ title: string; patients: Patient[]; onSelect: (id: string) => void; emptyMsg: string; headerClass?: string }> = ({ title, patients, onSelect, emptyMsg, headerClass }) => (
-    <Card className="border-border/50 shadow-sm h-full flex flex-col hover:border-border/80 transition-colors">
-        <CardHeader className={cn("py-4 px-6 border-b border-border/50", headerClass || "bg-muted/20")}>
-            <div className="flex justify-between items-center">
-                <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-                <Badge variant="secondary" className="font-mono text-xs bg-background/50">{patients.length}</Badge>
-            </div>
-        </CardHeader>
-        <CardContent className="p-0 flex-1 overflow-y-auto max-h-[500px]">
-            {patients.length > 0 ? (
-                <div className="divide-y divide-border/50">
-                    {patients.map(p => (
-                        <div
-                            key={p.id}
-                            onClick={() => onSelect(p.id)}
-                            role="button"
-                            data-testid={`patient-card-${p.name}`}
-                            className="p-4 hover:bg-muted/30 cursor-pointer transition-colors group"
-                        >
-                            <div className="flex justify-between items-start mb-1">
-                                <h4 className="font-medium text-sm group-hover:text-primary transition-colors">{p.name}</h4>
-                                <TriageBadge level={p.triage.level} className="text-[10px] uppercase" />
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <span>{p.age}y / {p.gender}</span>
-                                <span>•</span>
-                                <span className="font-mono">{p.id.slice(0, 8)}</span>
-                            </div>
-                            <div className="mt-2 flex items-center justify-between">
-                                <span className="text-xs font-medium text-muted-foreground">{p.chiefComplaints?.[0]?.complaint || 'No complaints'}</span>
-                                <span className="text-[10px] text-muted-foreground">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <div className="flex flex-col items-center justify-center h-48 text-muted-foreground opacity-60">
-                    <UserGroupIcon className="w-8 h-8 mb-2 opacity-50" />
-                    <span className="text-xs">{emptyMsg}</span>
-                </div>
-            )}
-        </CardContent>
-    </Card>
-);
+
 
 const DashboardPage: React.FC = () => {
     const { patients, setSelectedPatientId, isLoading } = usePatient();
@@ -139,6 +98,9 @@ const DashboardPage: React.FC = () => {
                     </Button>
                 </div>
             </div>
+
+            {/* To-Do Panel */}
+            <FocusFeed />
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
