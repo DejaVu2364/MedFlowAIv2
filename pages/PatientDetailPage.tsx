@@ -38,26 +38,35 @@ import { PatientJourney } from '../components/patient/PatientJourney';
 // --- PATIENT HEADER ---
 
 const PatientHeader: React.FC<{ patient: Patient; onTabChange: (tab: any) => void; navigate: any }> = React.memo(({ patient, onTabChange, navigate }) => {
+    const vitals = patient.vitals;
+
     return (
-        <div className="flex flex-col gap-6 mb-8">
-            <div className="flex flex-col md:flex-row justify-between md:items-start gap-4">
+        <div className="flex flex-col gap-4 mb-6">
+            <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4">
+                {/* Left: Patient Info */}
                 <div className="flex items-start gap-4">
-                    <div className="h-16 w-16 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-2xl font-bold text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700">
+                    <div className="h-14 w-14 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-xl font-bold text-zinc-900 dark:text-zinc-100 border border-zinc-200 dark:border-zinc-700">
                         {patient.name.charAt(0)}
                     </div>
                     <div>
                         <div className="flex items-center gap-3">
-                            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{patient.name}</h1>
+                            <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{patient.name}</h1>
                             <TriageBadge level={patient.triage.level} className="text-[10px] uppercase tracking-wider font-bold" />
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground mt-1">
                             <span className="font-medium text-foreground">{patient.age}y</span>
                             <span className="text-zinc-300 dark:text-zinc-700">•</span>
                             <span className="font-medium text-foreground">{patient.gender}</span>
                             <span className="text-zinc-300 dark:text-zinc-700">•</span>
                             <span className="font-mono text-xs">MRN: {patient.id.slice(0, 8).toUpperCase()}</span>
+                            {patient.bedAssignment && (
+                                <>
+                                    <span className="text-zinc-300 dark:text-zinc-700">•</span>
+                                    <span className="text-primary font-semibold">{patient.bedAssignment.wardId}, Bed {patient.bedAssignment.bedLabel}</span>
+                                </>
+                            )}
                         </div>
-                        <div className="flex flex-wrap gap-2 mt-2">
+                        <div className="flex flex-wrap gap-1.5 mt-2">
                             {patient.chiefComplaints?.map((c, i) => (
                                 <Badge key={i} variant="secondary" className="text-xs font-normal bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700">
                                     {c.complaint} <span className="opacity-50 ml-1">({c.durationValue}{c.durationUnit.charAt(0)})</span>
@@ -67,25 +76,31 @@ const PatientHeader: React.FC<{ patient: Patient; onTabChange: (tab: any) => voi
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="flex flex-col items-end mr-4 hidden md:flex">
-                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</span>
-                        <span className="text-sm font-semibold text-foreground">{patient.status}</span>
+                {/* Right: Vitals at a Glance */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex flex-col items-center px-3 py-1.5 bg-muted/50 rounded-lg border min-w-[60px]">
+                        <span className="text-[10px] uppercase text-muted-foreground font-bold">HR</span>
+                        <span className={cn("text-sm font-bold", vitals?.pulse && vitals.pulse > 100 ? "text-destructive" : "text-foreground")}>{vitals?.pulse || '--'}</span>
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => onTabChange('vitals')}>
-                        <Activity className="w-4 h-4 mr-2" />
-                        Vitals
-                    </Button>
-                    <Button variant={patient.dischargeSummary ? "outline" : "default"} size="sm" onClick={() => navigate(`/discharge/${patient.id}`)}>
-                        <FileText className="w-4 h-4 mr-2" />
-                        {patient.dischargeSummary ? "View Discharge" : "Prepare Discharge"}
-                    </Button>
+                    <div className="flex flex-col items-center px-3 py-1.5 bg-muted/50 rounded-lg border min-w-[70px]">
+                        <span className="text-[10px] uppercase text-muted-foreground font-bold">BP</span>
+                        <span className="text-sm font-bold text-foreground">{vitals?.bp_sys || '--'}/{vitals?.bp_dia || '--'}</span>
+                    </div>
+                    <div className="flex flex-col items-center px-3 py-1.5 bg-muted/50 rounded-lg border min-w-[60px]">
+                        <span className="text-[10px] uppercase text-muted-foreground font-bold">SpO2</span>
+                        <span className={cn("text-sm font-bold", vitals?.spo2 && vitals.spo2 < 95 ? "text-destructive" : "text-foreground")}>{vitals?.spo2 || '--'}%</span>
+                    </div>
+                    <div className="flex flex-col items-center px-3 py-1.5 bg-muted/50 rounded-lg border min-w-[50px]">
+                        <span className="text-[10px] uppercase text-muted-foreground font-bold">Temp</span>
+                        <span className={cn("text-sm font-bold", vitals?.temp_c && vitals.temp_c > 38 ? "text-destructive" : "text-foreground")}>{vitals?.temp_c?.toFixed(1) || '--'}°</span>
+                    </div>
                 </div>
             </div>
             <Separator />
         </div>
     );
 });
+
 
 // --- ORDERS TAB (Legacy Logic Wrapped) ---
 

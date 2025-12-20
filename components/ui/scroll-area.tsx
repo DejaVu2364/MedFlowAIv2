@@ -11,7 +11,7 @@ const ScrollArea = React.forwardRef<
         className={cn("relative overflow-hidden", className)}
         {...props}
     >
-        <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">
+        <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit] scroll-smooth">
             {children}
         </ScrollAreaPrimitive.Viewport>
         <ScrollBar />
@@ -28,16 +28,25 @@ const ScrollBar = React.forwardRef<
         ref={ref}
         orientation={orientation}
         className={cn(
-            "flex touch-none select-none transition-colors",
+            "flex touch-none select-none transition-all duration-300",
+            // Thinner, more elegant scrollbar
             orientation === "vertical" &&
-            "h-full w-2.5 border-l border-l-transparent p-[1px]",
+            "h-full w-1.5 border-l border-l-transparent p-[1px] hover:w-2 hover:bg-slate-100/50 dark:hover:bg-slate-800/50",
             orientation === "horizontal" &&
-            "h-2.5 border-t border-t-transparent p-[1px]",
+            "h-1.5 border-t border-t-transparent p-[1px] hover:h-2 hover:bg-slate-100/50 dark:hover:bg-slate-800/50",
             className
         )}
         {...props}
     >
-        <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-border" />
+        <ScrollAreaPrimitive.ScrollAreaThumb
+            className={cn(
+                "relative flex-1 rounded-full transition-all duration-200",
+                // Elegant teal gradient thumb
+                "bg-slate-300/60 dark:bg-slate-600/60",
+                "hover:bg-teal-500/70 dark:hover:bg-teal-400/70",
+                "active:bg-teal-600/80 dark:active:bg-teal-500/80"
+            )}
+        />
     </ScrollAreaPrimitive.ScrollAreaScrollbar>
 ))
 ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName

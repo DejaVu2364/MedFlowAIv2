@@ -30,7 +30,7 @@ const MOCK_USER_CREDENTIALS = {
 };
 
 const MOCK_USERS: Record<string, User> = {
-    'doctor@medflow.ai': { id: 'USR-001', name: 'Dr. Sarah Chen', email: 'doctor@medflow.ai', role: 'Doctor' },
+    'doctor@medflow.ai': { id: 'USR-001', name: 'Dr. Harikrishnan S', email: 'doctor@medflow.ai', role: 'Doctor' },
     'intern@medflow.ai': { id: 'USR-002', name: 'Dr. James Wu (Intern)', email: 'intern@medflow.ai', role: 'Intern' },
     'admin@medflow.ai': { id: 'USR-003', name: 'Admin User', email: 'admin@medflow.ai', role: 'Admin' }
 };
@@ -44,10 +44,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // Helper to map Firebase user to App user
     const mapFirebaseUser = (user: any): User => {
-        const role = user.email?.includes('admin') ? 'Admin' : user.email?.includes('intern') ? 'Intern' : 'Doctor';
+        const email = user.email?.toLowerCase() || '';
+        const mockUser = MOCK_USERS[email];
+        const role = email.includes('admin') ? 'Admin' : email.includes('intern') ? 'Intern' : 'Doctor';
         return {
             id: user.uid,
-            name: user.displayName || user.email?.split('@')[0] || 'User',
+            name: mockUser?.name || user.displayName || 'Dr. Harikrishnan S',
             email: user.email || '',
             role: role as Role
         };

@@ -4,8 +4,13 @@ import { PatientOverviewCard } from '../components/medview/PatientOverviewCard';
 import { UsersIcon, FunnelIcon, ArrowsUpDownIcon } from '@heroicons/react/24/outline';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { cn } from '../lib/utils';
 
-const ConsultantViewPage: React.FC = () => {
+interface ConsultantViewPageProps {
+    embedded?: boolean;
+}
+
+const ConsultantViewPage: React.FC<ConsultantViewPageProps> = ({ embedded = false }) => {
     const { patients, isLoading } = usePatient();
     const [searchQuery, setSearchQuery] = React.useState('');
     const [sortConfig, setSortConfig] = React.useState<{ key: 'name' | 'triage' | 'age' | 'wait_time', direction: 'asc' | 'desc' }>({ key: 'triage', direction: 'desc' });
@@ -73,19 +78,30 @@ const ConsultantViewPage: React.FC = () => {
     }
 
     return (
-        <div className="space-y-8 pb-12 animate-in fade-in duration-500">
+        <div className={cn("space-y-8 pb-12 animate-in fade-in duration-500", embedded && "max-w-[1600px] mx-auto px-4")}>
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-                        <UsersIcon className="w-8 h-8 text-primary" />
-                        Consultant Dashboard
-                    </h1>
-                    <p className="text-muted-foreground mt-1">
-                        Overview of all admitted patients • {patients.length} Active Cases
-                    </p>
+            {!embedded && (
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
+                            <UsersIcon className="w-8 h-8 text-primary" />
+                            Consultant Dashboard
+                        </h1>
+                        <p className="text-muted-foreground mt-1">
+                            Overview of all admitted patients • {patients.length} Active Cases
+                        </p>
+                    </div>
                 </div>
-                <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+            )}
+            {/* Filter Controls - Conditional styling when embedded */}
+            <div className={cn("flex flex-col md:flex-row justify-between items-start md:items-center gap-4", embedded && "mb-6")}>
+                {embedded ? (
+                    <div className="block">
+                        {/* Empty div to spacing if embedded header is gone, but we still need row for filters */}
+                    </div>
+                ) : null}
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto ml-auto">
+
                     <div className="relative w-full sm:w-auto">
                         <Input
                             placeholder="Filter patients..."

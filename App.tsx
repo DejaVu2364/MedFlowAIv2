@@ -40,9 +40,9 @@ const DischargePrintView = lazyLoad(() => import('./pages/DischargePrintView'));
 const LoginPage = lazyLoad(() => import('./pages/LoginPage'));
 const NotFoundPage = lazyLoad(() => import('./pages/NotFoundPage'));
 const AdminRevenueDashboard = lazyLoad(() => import('./pages/AdminRevenueDashboard'));
+const OpsCommandCenter = lazyLoad(() => import('./pages/OpsCommandCenter'));
 
 import Header from './components/Header';
-import ChatPanel from './components/ChatPanel';
 import { OfflineBanner } from './components/OfflineBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -61,21 +61,14 @@ const ProtectedLayout: React.FC = () => {
     }
 
     return (
-        <MedicalLayout>
-            <div className="p-6 max-w-[1600px] mx-auto animate-in fade-in duration-300">
-                <Outlet />
-            </div>
-            {/* Kept global components if needed, though sidebar might cover them. 
-                ChatPanel, CommandPalette etc can be added here if we want them available globaly 
-                but sticking to user request for clean sidebar for now. 
-                User prompt didn't explicitly ask to remove them, but "MedicalLayout" structure provided in prompt 8B 
-                doesn't include them in the snippet. I'll omit them to match the "clean" request 
-                unless "God Mode" implies full features. I'll keep them but commented or integrated 
-                if I edit MedicalLayout content. 
-                Actually, let's keep it simple as requested: "Just render the links." 
-            */}
+        <>
+            <MedicalLayout>
+                <div className="p-6 max-w-[1600px] mx-auto animate-in fade-in duration-300">
+                    <Outlet />
+                </div>
+            </MedicalLayout>
             <UnifiedAICopilot />
-        </MedicalLayout>
+        </>
     );
 };
 
@@ -97,6 +90,7 @@ const AppRoutes: React.FC = () => {
                     <Route path="/beds" element={<BedManager />} />
                     <Route path="/revenue" element={<RevenueDashboard />} />
                     <Route path="/tpa" element={<TPADesk />} />
+                    <Route path="/ops" element={<OpsCommandCenter />} />
                     <Route path="/patients" element={<ReceptionPage />} />
 
                     {/* Primary Patient Workspace */}

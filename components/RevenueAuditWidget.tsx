@@ -40,22 +40,37 @@ export const RevenueAuditWidget: React.FC<RevenueAuditWidgetProps> = ({ patient 
     };
 
     if (!hasRun) {
+        // Show loading state with skeleton UI during analysis
+        if (isLoading) {
+            return (
+                <Card className="shadow-sm border-l-4 border-l-primary/50 overflow-hidden animate-pulse">
+                    <CardHeader className="pb-2 bg-muted/20">
+                        <div className="flex items-center gap-2">
+                            <ArrowPathIcon className="w-5 h-5 text-primary animate-spin" />
+                            <CardTitle className="text-base">Analyzing Revenue...</CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3 pt-4">
+                        <div className="h-8 bg-muted rounded w-1/2"></div>
+                        <div className="h-4 bg-muted rounded w-3/4"></div>
+                        <div className="h-4 bg-muted rounded w-2/3"></div>
+                    </CardContent>
+                </Card>
+            );
+        }
+
         return (
-            <Card className="border-dashed border-2 shadow-none">
+            <Card className="border-dashed border-2 shadow-none hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer group" onClick={handleAudit}>
                 <CardContent className="flex flex-col items-center justify-center py-6 gap-3">
-                    <BanknotesIcon className="w-8 h-8 text-muted-foreground opacity-50" />
-                    <div className="text-center">
-                        <h4 className="font-semibold text-sm">Revenue Integrity Check</h4>
-                        <p className="text-xs text-muted-foreground max-w-[200px]">Identify potential leakage and claim risks.</p>
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                        <BanknotesIcon className="w-6 h-6 text-primary" />
                     </div>
-                    <Button size="sm" onClick={handleAudit} disabled={isLoading}>
-                        {isLoading ? (
-                            <>
-                                <ArrowPathIcon className="w-3 h-3 mr-2 animate-spin" /> Analyzing...
-                            </>
-                        ) : (
-                            <>Run Audit</>
-                        )}
+                    <div className="text-center">
+                        <h4 className="font-semibold text-sm">Revenue Guard</h4>
+                        <p className="text-xs text-muted-foreground max-w-[200px]">AI-powered leakage detection and claim risk analysis.</p>
+                    </div>
+                    <Button size="sm" variant="default" className="group-hover:bg-primary/90">
+                        Run Analysis
                     </Button>
                 </CardContent>
             </Card>

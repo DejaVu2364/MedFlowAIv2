@@ -21,71 +21,88 @@ import { cn } from '../../lib/utils';
 
 // --- SUB-SECTIONS ---
 
-const PatientHeader: React.FC<{ patient: Patient }> = ({ patient }) => {
-    const vitals = patient.vitals;
-
-    // Determine risk level based on triage or vitals (mock logic)
-    const riskLevel = patient.triage.level === 'Red' ? 'high' : patient.triage.level === 'Yellow' ? 'medium' : 'low';
-
-    return (
-        <div className="sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b px-4 py-3 shadow-sm mb-6 -mx-4 sm:-mx-6 lg:-mx-8 mt-[-1.5rem] sm:mt-[-2rem] lg:mt-[-2rem]">
-            <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold shadow-md">
-                        {patient.name.charAt(0)}
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-lg font-bold leading-none tracking-tight">{patient.name}</h1>
-                            <TriageBadge level={patient.triage.level} />
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 font-medium">
-                            <span>{patient.age}y / {patient.gender}</span>
-                            <Separator orientation="vertical" className="h-3" />
-                            <span className="font-mono">UHID: {patient.id.slice(-6)}</span>
-                            <Separator orientation="vertical" className="h-3" />
-                            <span>Ward A, Bed 4</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                            {patient.chiefComplaints?.map((c, i) => (
-                                <Badge key={i} variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal bg-muted/50 text-muted-foreground border-border/50">
-                                    {c.complaint} ({c.durationValue}{c.durationUnit.charAt(0)})
-                                </Badge>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <div className="flex flex-col items-center px-3 py-1 bg-muted/50 rounded-lg border">
-                        <span className="text-[10px] uppercase text-muted-foreground font-bold">HR</span>
-                        <span className={cn("text-sm font-bold", vitals?.pulse && vitals.pulse > 100 ? "text-destructive" : "text-foreground")}>{vitals?.pulse || '--'}</span>
-                    </div>
-                    <div className="flex flex-col items-center px-3 py-1 bg-muted/50 rounded-lg border">
-                        <span className="text-[10px] uppercase text-muted-foreground font-bold">BP</span>
-                        <span className="text-sm font-bold text-foreground">{vitals?.bp_sys}/{vitals?.bp_dia || '--'}</span>
-                    </div>
-                    <div className="flex flex-col items-center px-3 py-1 bg-muted/50 rounded-lg border">
-                        <span className="text-[10px] uppercase text-muted-foreground font-bold">SpO2</span>
-                        <span className={cn("text-sm font-bold", vitals?.spo2 && vitals.spo2 < 95 ? "text-destructive" : "text-foreground")}>{vitals?.spo2 || '--'}%</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 const TimelineCard: React.FC<{ patient: Patient }> = ({ patient }) => {
-    // Mock events - REMOVED for production readiness
-    // In a real app, this would come from patient.timeline or a specific 'events' field
-    const events: { time: string; text: string; icon: string; color: string }[] = [];
+    // Convert patient timeline events to display format
+    const events = useMemo(() => {
+        if (!patient.timeline || patient.timeline.length === 0) {
+            // Generate events from patient data (orders, results, vitals)
+            const generatedEvents: { time: string; text: string; icon: string; color: string }[] = [];
+
+            // Add recent orders as events
+            patient.orders?.slice(0, 3).forEach(order => {
+                const time = new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                generatedEvents.push({
+                    time,
+                    text: `${order.category === 'medication' ? '💊' : '🔬'} Order: ${order.label}`,
+                    icon: order.status === 'completed' ? '✓' : '⏳',
+                    color: order.status === 'completed' ? 'text-green-600' : 'text-amber-600'
+                });
+            });
+
+            // Add recent results as events
+            patient.results?.slice(0, 2).forEach(result => {
+                const time = new Date(result.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                generatedEvents.push({
+                    time,
+                    text: `📋 Result: ${result.name} - ${result.value}`,
+                    icon: result.isAbnormal ? '⚠️' : '✓',
+                    color: result.isAbnormal ? 'text-red-600' : 'text-green-600'
+                });
+            });
+
+            // Add vitals update if history exists
+            if (patient.vitalsHistory && patient.vitalsHistory.length > 0) {
+                const latestVitals = patient.vitalsHistory[0];
+                const time = new Date(latestVitals.recordedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                generatedEvents.push({
+                    time,
+                    text: `📊 Vitals recorded - HR: ${latestVitals.measurements.pulse}, SpO2: ${latestVitals.measurements.spo2}%`,
+                    icon: '💓',
+                    color: 'text-teal-600'
+                });
+            }
+
+            return generatedEvents.sort((a, b) => b.time.localeCompare(a.time));
+        }
+
+        // Map actual timeline events if they exist
+        return patient.timeline.map(event => {
+            if (event.type === 'TeamNote') {
+                return {
+                    time: new Date(event.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                    text: `📝 ${event.author}: ${event.content.substring(0, 50)}...`,
+                    icon: event.isEscalation ? '🚨' : '💬',
+                    color: event.isEscalation ? 'text-red-600' : 'text-slate-600'
+                };
+            } else if (event.type === 'Checklist') {
+                const completed = event.items.filter(i => i.checked).length;
+                return {
+                    time: new Date(event.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                    text: `✅ ${event.title} (${completed}/${event.items.length})`,
+                    icon: '📋',
+                    color: completed === event.items.length ? 'text-green-600' : 'text-amber-600'
+                };
+            } else {
+                // SOAPNote
+                return {
+                    time: new Date(event.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                    text: `🩺 SOAP Note by ${event.author}`,
+                    icon: '📄',
+                    color: 'text-blue-600'
+                };
+            }
+        });
+    }, [patient.timeline, patient.orders, patient.results, patient.vitalsHistory]);
 
     if (events.length === 0) {
         return (
-            <Card className="shadow-sm border-dashed border-border/50">
-                <CardContent className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                    <ClockIcon className="w-8 h-8 mb-2 opacity-50" />
-                    <p>No recent timeline events</p>
+            <Card className="shadow-sm border-dashed border-border/50 bg-muted/20">
+                <CardContent className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                    <div className="w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                        <ClockIcon className="w-7 h-7 opacity-60" />
+                    </div>
+                    <p className="font-medium text-sm">No Recent Activity</p>
+                    <p className="text-xs mt-1 text-center max-w-[200px]">Events will appear as orders, results, and vitals are recorded.</p>
                 </CardContent>
             </Card>
         );
@@ -95,11 +112,11 @@ const TimelineCard: React.FC<{ patient: Patient }> = ({ patient }) => {
         <Card className="shadow-sm hover:shadow-md transition-all duration-200 border-border/50">
             <CardHeader className="flex flex-row items-center gap-2 pb-2">
                 <MoonIcon className="w-5 h-5 text-muted-foreground" />
-                <CardTitle className="text-base font-semibold">Overnight Events (8 PM - Now)</CardTitle>
+                <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="relative border-l-2 border-muted ml-3 space-y-6 py-2">
-                    {events.map((event, i) => (
+                    {events.slice(0, 5).map((event, i) => (
                         <div key={i} className="ml-6 relative">
                             <div className="absolute -left-[1.95rem] top-0 bg-background border rounded-full w-8 h-8 flex items-center justify-center text-sm shadow-sm z-10">
                                 {event.icon}
@@ -119,10 +136,14 @@ const TimelineCard: React.FC<{ patient: Patient }> = ({ patient }) => {
 
 
 const MedReviewCard: React.FC<{ patient: Patient }> = ({ patient }) => {
-    // Placeholder logic for empty state
-    const hasMeds = false;
+    // Get medication orders from patient data
+    const medications = useMemo(() => {
+        return (patient.orders || [])
+            .filter(order => order.category === 'medication')
+            .slice(0, 5);
+    }, [patient.orders]);
 
-    if (!hasMeds) {
+    if (medications.length === 0) {
         return (
             <Card className="shadow-sm border-dashed border-border/50">
                 <CardHeader className="flex flex-row items-center gap-2 pb-2">
@@ -136,36 +157,40 @@ const MedReviewCard: React.FC<{ patient: Patient }> = ({ patient }) => {
         );
     }
 
+    const getStatusBadge = (status: string) => {
+        switch (status) {
+            case 'completed':
+                return <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">Given</Badge>;
+            case 'in_progress':
+                return <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">Active</Badge>;
+            case 'sent':
+                return <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">Ordered</Badge>;
+            default:
+                return <Badge variant="outline">Pending</Badge>;
+        }
+    };
+
     return (
         <Card className="shadow-sm hover:shadow-md transition-all duration-200 border-border/50">
             <CardHeader className="flex flex-row items-center gap-2 pb-2">
                 <BeakerIcon className="w-5 h-5 text-muted-foreground" />
                 <CardTitle className="text-base font-semibold">Medication Review</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <div className="text-sm font-semibold">Amlodipine 5 mg OD</div>
-                        <div className="text-xs text-destructive font-medium">Missed yesterday</div>
-                    </div>
-                    <Badge variant="destructive">Missed</Badge>
-                </div>
-                <Separator />
-                <div className="flex justify-between items-start">
-                    <div>
-                        <div className="text-sm font-semibold">Ondansetron</div>
-                        <div className="text-xs text-green-600 dark:text-green-400">Given x2 overnight</div>
-                    </div>
-                    <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">Active</Badge>
-                </div>
-                <Separator />
-                <div className="flex justify-between items-start">
-                    <div>
-                        <div className="text-sm font-semibold">Paracetamol</div>
-                        <div className="text-xs text-blue-500">Next dose due at 10:00 AM</div>
-                    </div>
-                    <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">Due Soon</Badge>
-                </div>
+            <CardContent className="space-y-3">
+                {medications.map((med, idx) => (
+                    <React.Fragment key={med.orderId}>
+                        {idx > 0 && <Separator />}
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <div className="text-sm font-semibold">{med.label}</div>
+                                <div className="text-xs text-muted-foreground">
+                                    {new Date(med.createdAt).toLocaleDateString()} • {med.priority}
+                                </div>
+                            </div>
+                            {getStatusBadge(med.status)}
+                        </div>
+                    </React.Fragment>
+                ))}
             </CardContent>
         </Card>
     );
@@ -176,11 +201,102 @@ const MedReviewCard: React.FC<{ patient: Patient }> = ({ patient }) => {
 const MedViewRedesigned: React.FC<{ patient: Patient }> = ({ patient }) => {
     const { generatePatientOverview, updateStateAndDb, isLoading } = usePatient();
 
-    // Mock Changes Data - REMOVED
-    const changes: { category: 'vitals' | 'labs' | 'symptoms' | 'meds'; description: string; trend?: 'up' | 'down' | 'stable'; severity?: 'high' | 'medium' | 'low' }[] = [];
+    // Derive AI Changes from patient data
+    const changes = useMemo(() => {
+        const result: { category: 'vitals' | 'labs' | 'symptoms' | 'meds'; description: string; trend?: 'up' | 'down' | 'stable'; severity?: 'high' | 'medium' | 'low' }[] = [];
 
-    // Mock Tasks Data - REMOVED
+        // Check for abnormal results
+        patient.results?.filter(r => r.isAbnormal).forEach(r => {
+            result.push({
+                category: 'labs',
+                description: `${r.name}: ${r.value} (abnormal)`,
+                severity: 'high',
+                trend: 'up'
+            });
+        });
+
+        // Check vitals for concerning trends
+        if (patient.vitals) {
+            if (patient.vitals.spo2 && patient.vitals.spo2 < 95) {
+                result.push({
+                    category: 'vitals',
+                    description: `SpO2 low: ${patient.vitals.spo2}%`,
+                    severity: 'high',
+                    trend: 'down'
+                });
+            }
+            if (patient.vitals.pulse && patient.vitals.pulse > 100) {
+                result.push({
+                    category: 'vitals',
+                    description: `Tachycardia: HR ${patient.vitals.pulse}`,
+                    severity: 'medium',
+                    trend: 'up'
+                });
+            }
+            if (patient.vitals.bp_sys && patient.vitals.bp_sys < 100) {
+                result.push({
+                    category: 'vitals',
+                    description: `Hypotension: BP ${patient.vitals.bp_sys}/${patient.vitals.bp_dia}`,
+                    severity: 'high',
+                    trend: 'down'
+                });
+            }
+        }
+
+        return result;
+    }, [patient.results, patient.vitals]);
+
+    // Derive AI Tasks from patient data
     const [tasks, setTasks] = useState<{ id: string; description: string; priority: 'high' | 'medium' | 'low'; completed: boolean }[]>([]);
+
+    // Generate tasks on mount or when patient changes
+    useMemo(() => {
+        const generatedTasks: typeof tasks = [];
+
+        // Add tasks for pending orders
+        const pendingOrders = (patient.orders || []).filter(o => o.status === 'sent' || o.status === 'in_progress');
+        if (pendingOrders.length > 0) {
+            generatedTasks.push({
+                id: 'task-pending-orders',
+                description: `Follow up on ${pendingOrders.length} pending orders`,
+                priority: 'medium',
+                completed: false
+            });
+        }
+
+        // Add tasks for abnormal results
+        const abnormalResults = (patient.results || []).filter(r => r.isAbnormal);
+        if (abnormalResults.length > 0) {
+            generatedTasks.push({
+                id: 'task-abnormal-labs',
+                description: `Review ${abnormalResults.length} abnormal lab results`,
+                priority: 'high',
+                completed: false
+            });
+        }
+
+        // Add clinical documentation task
+        if (patient.clinicalFile?.status === 'draft') {
+            generatedTasks.push({
+                id: 'task-sign-clinical',
+                description: 'Complete and sign clinical file',
+                priority: 'medium',
+                completed: false
+            });
+        }
+
+        // Add discharge planning task if patient is stable
+        if (patient.triage?.level === 'Green' && patient.status === 'In Treatment') {
+            generatedTasks.push({
+                id: 'task-discharge-plan',
+                description: 'Evaluate for discharge readiness',
+                priority: 'low',
+                completed: false
+            });
+        }
+
+        setTasks(generatedTasks);
+    }, [patient.id]);
 
     const toggleTask = (id: string) => {
         setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
@@ -200,60 +316,52 @@ const MedViewRedesigned: React.FC<{ patient: Patient }> = ({ patient }) => {
     };
 
     return (
-        <div className="min-h-screen bg-background pb-20">
-            <PatientHeader patient={patient} />
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <AISummaryCard
+                summary={patient.overview?.summary || "Click refresh to generate AI summary."}
+                onRefresh={() => generatePatientOverview(patient.id)}
+                isLoading={isLoading}
+            />
 
-            <div className="max-w-6xl mx-auto p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <AISummaryCard
-                    summary={patient.overview?.summary || "Click refresh to generate summary."}
-                    onRefresh={() => generatePatientOverview(patient.id)}
-                    isLoading={isLoading}
-                />
+            <AIChangeCard changes={changes} />
 
-                <AIChangeCard changes={changes} />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                    {/* Always render TimelineCard - it handles empty state internally */}
+                    <TimelineCard patient={patient} />
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-2 space-y-8">
-                        {patient.timeline.length > 0 ? (
-                            <TimelineCard patient={patient} />
-                        ) : (
-                            <Card className="shadow-sm border-dashed">
-                                <CardContent className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                                    <ClockIcon className="w-8 h-8 mb-2 opacity-50" />
-                                    <p>No recent timeline events</p>
-                                </CardContent>
-                            </Card>
-                        )}
-
-                        {patient.vitalsHistory.length > 0 ? (
-                            <KeyTrends patient={patient} />
-                        ) : (
-                            <Card className="shadow-sm border-dashed">
-                                <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                                    <ArrowTrendingUpIcon className="w-8 h-8 mb-2 opacity-50" />
-                                    <p>No vitals trend data available</p>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </div>
-                    <div className="space-y-8">
-                        <RevenueAuditWidget patient={patient} />
-                        <ProblemList
-                            problems={patient.activeProblems || []}
-                            onAdd={addProblem}
-                            onEdit={editProblem}
-                            onRemove={removeProblem}
-                        />
-                        <MedReviewCard patient={patient} />
-                        <AITaskList tasks={tasks} onToggle={toggleTask} />
-                    </div>
+                    {/* Key Trends - check for vitalsHistory safely */}
+                    {(patient.vitalsHistory?.length ?? 0) > 0 ? (
+                        <KeyTrends patient={patient} />
+                    ) : (
+                        <Card className="shadow-sm border-dashed bg-muted/20">
+                            <CardContent className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                                <div className="w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                                    <ArrowTrendingUpIcon className="w-7 h-7 opacity-60" />
+                                </div>
+                                <p className="font-medium text-sm">No Vitals Trends</p>
+                                <p className="text-xs mt-1 text-center max-w-[200px]">Charts will populate as vitals are recorded over time.</p>
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
-
-                <HandoverCard
-                    initialNote={patient.handoverSummary}
-                    onSave={(note) => updateStateAndDb(patient.id, p => ({ ...p, handoverSummary: note }))}
-                />
+                <div className="space-y-8">
+                    <RevenueAuditWidget patient={patient} />
+                    <ProblemList
+                        problems={patient.activeProblems || []}
+                        onAdd={addProblem}
+                        onEdit={editProblem}
+                        onRemove={removeProblem}
+                    />
+                    <MedReviewCard patient={patient} />
+                    <AITaskList tasks={tasks} onToggle={toggleTask} />
+                </div>
             </div>
+
+            <HandoverCard
+                initialNote={patient.handoverSummary}
+                onSave={(note) => updateStateAndDb(patient.id, p => ({ ...p, handoverSummary: note }))}
+            />
         </div>
     );
 };

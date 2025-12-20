@@ -393,6 +393,24 @@ export interface Patient {
     dischargeSummary?: DischargeSummary;
     handoverSummary?: string;
     activeProblems?: ActiveProblem[];
+
+    // Ops: Payment & Insurance
+    paymentMode?: 'Cash' | 'Insurance' | 'Corporate';
+    insuranceInfo?: {
+        provider: string;
+        policyNumber: string;
+        roomRentCap: number;
+        overallCap: number;
+    };
+
+    // Ops: Admission & Bed Tracking
+    admissionDate?: string; // ISO date string
+    bedAssignment?: {
+        bedId: string;
+        wardId: string;
+        bedLabel: string;
+        assignedAt: string;
+    };
 }
 
 export type Page = 'dashboard' | 'reception' | 'triage' | 'patientDetail' | 'dischargeSummary';

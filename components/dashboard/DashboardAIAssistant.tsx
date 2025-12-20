@@ -32,9 +32,9 @@ interface DashboardAIAssistantProps {
 }
 
 const GREETING_TEMPLATES = [
-    "Good morning, Dr. {name}! You have {critical} critical patients today.",
-    "Welcome back, Dr. {name}. {pending} orders are awaiting your review.",
-    "Hello Dr. {name}! Quick summary: {total} patients in your care."
+    "Good morning, {name}! You have {critical} critical patients today.",
+    "Welcome back, {name}. {pending} orders are awaiting your review.",
+    "Hello {name}! Quick summary: {total} patients in your care."
 ];
 
 const QUICK_ACTIONS = [
@@ -77,7 +77,7 @@ export const DashboardAIAssistant: React.FC<DashboardAIAssistantProps> = ({
             const greeting: Message = {
                 id: 'greeting',
                 role: 'assistant',
-                content: `${getTimeGreeting()}, Dr. ${userName}! 👋\n\nHere's your quick summary:\n• **${criticalCount}** critical patients\n• **${pendingOrders}** pending orders\n• **${dischargeReady}** patients ready for discharge\n\nHow can I help you today?`,
+                content: `${getTimeGreeting()}, ${userName}! 👋\n\nHere's your quick summary:\n• **${criticalCount}** critical patients\n• **${pendingOrders}** pending orders\n• **${dischargeReady}** patients ready for discharge\n\nHow can I help you today?`,
                 timestamp: new Date(),
                 actions: QUICK_ACTIONS.map(qa => ({ label: qa.label, action: 'query', payload: qa.query }))
             };

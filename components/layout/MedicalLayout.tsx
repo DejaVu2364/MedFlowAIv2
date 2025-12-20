@@ -9,12 +9,15 @@ import {
     LogOut,
     UserCircle,
     Stethoscope,
-    RefreshCw
+    RefreshCw,
+    Menu,
+    X
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePatientData } from '../../hooks/usePatientData';
 import { useRBAC } from '../../hooks/useRBAC';
+import { ConnectionStatus } from '../common/ConnectionStatus';
 
 interface MedicalLayoutProps {
     children: React.ReactNode;
@@ -27,6 +30,7 @@ export const MedicalLayout: React.FC<MedicalLayoutProps> = ({ children }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [mode, setMode] = useState<AppMode>('doctor');
+    const [mobileOpen, setMobileOpen] = useState(false);
     const { resetSystem } = usePatientData(currentUser);
     const { can, isAdmin } = useRBAC();
 
@@ -52,10 +56,11 @@ export const MedicalLayout: React.FC<MedicalLayoutProps> = ({ children }) => {
     const doctorNavItems = [
         { path: '/', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/reception', label: 'Register Patient', icon: Users },
-        { path: '/triage', label: 'Triage', icon: Stethoscope },
+        { path: '/?view=triage', label: 'Triage', icon: Stethoscope },
     ];
 
     const adminNavItems = [
+        { path: '/ops', label: 'Command Center', icon: LayoutDashboard },
         { path: '/beds', label: 'Bed Flow', icon: BedDouble },
         { path: '/revenue', label: 'Revenue Guard', icon: Landmark },
         { path: '/tpa', label: 'TPA Desk', icon: FileCheck },
@@ -109,21 +114,43 @@ export const MedicalLayout: React.FC<MedicalLayoutProps> = ({ children }) => {
                     <div className="mb-2 px-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
                         {mode === 'doctor' ? 'Clinical Workspace' : 'Hospital Operations'}
                     </div>
-                    {currentNavItems.map((item) => (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            className={({ isActive }) => cn(
-                                "flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md transition-colors duration-200",
-                                isActive
-                                    ? (mode === 'doctor' ? "bg-teal-600 text-white shadow-lg shadow-teal-900/20" : "bg-indigo-600 text-white shadow-lg shadow-indigo-900/20")
-                                    : "hover:bg-slate-800 hover:text-white"
-                            )}
-                        >
-                            <item.icon className="w-5 h-5" />
-                            {item.label}
-                        </NavLink>
-                    ))}
+                    {currentNavItems.map((item) => {
+                        // Custom active state logic to handle query params
+                        const isActive = (() => {
+                            const currentPath = location.pathname;
+                            const currentSearch = location.search;
+
+                            // For Triage (/?view=triage), only active if search matches
+                            if (item.path.includes('?')) {
+                                const [basePath, search] = item.path.split('?');
+                                return currentPath === basePath && currentSearch === `?${search}`;
+                            }
+
+                            // For Dashboard (/), only active if NO query params
+                            if (item.path === '/') {
+                                return currentPath === '/' && !currentSearch;
+                            }
+
+                            // Default: pathname starts with item path
+                            return currentPath.startsWith(item.path);
+                        })();
+
+                        return (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                className={cn(
+                                    "flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md transition-colors duration-200",
+                                    isActive
+                                        ? (mode === 'doctor' ? "bg-teal-600 text-white shadow-lg shadow-teal-900/20" : "bg-indigo-600 text-white shadow-lg shadow-indigo-900/20")
+                                        : "hover:bg-slate-800 hover:text-white"
+                                )}
+                            >
+                                <item.icon className="w-5 h-5" />
+                                {item.label}
+                            </NavLink>
+                        );
+                    })}
                 </nav>
 
                 {/* Bottom Actions */}
@@ -152,9 +179,65 @@ export const MedicalLayout: React.FC<MedicalLayoutProps> = ({ children }) => {
                 </div>
             </aside>
 
+            {/* Mobile Menu Button */}
+            <button
+                onClick={() => setMobileOpen(!mobileOpen)}
+                className="fixed top-4 left-4 z-50 md:hidden p-2 bg-slate-900 text-white rounded-lg shadow-lg"
+                aria-label="Toggle menu"
+            >
+                {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+
+            {/* Mobile Sidebar Overlay */}
+            {mobileOpen && (
+                <div
+                    className="fixed inset-0 bg-black/50 z-40 md:hidden"
+                    onClick={() => setMobileOpen(false)}
+                />
+            )}
+
+            {/* Mobile Sidebar */}
+            <aside className={cn(
+                "fixed left-0 top-0 h-screen w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-50 md:hidden transition-transform duration-300",
+                mobileOpen ? "translate-x-0" : "-translate-x-full"
+            )}>
+                <div className="h-20 flex items-center justify-between px-4 border-b border-slate-800">
+                    <h1 className="text-white font-bold text-lg tracking-widest uppercase">
+                        MedFlow
+                    </h1>
+                    <button onClick={() => setMobileOpen(false)} className="text-slate-400 hover:text-white">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                <nav className="flex-1 py-4 px-3 space-y-1">
+                    {currentNavItems.map((item) => (
+                        <NavLink
+                            key={item.path}
+                            to={item.path}
+                            onClick={() => setMobileOpen(false)}
+                            className={({ isActive }) => cn(
+                                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                                isActive ? "bg-teal-600/20 text-teal-400" : "hover:bg-slate-800 text-slate-400"
+                            )}
+                        >
+                            <item.icon className="w-5 h-5" />
+                            {item.label}
+                        </NavLink>
+                    ))}
+                </nav>
+            </aside>
+
             {/* Main Content Area */}
-            <main className="flex-1 md:ml-64 min-h-screen bg-slate-50 transition-all duration-300">
-                {children}
+            <main className="flex-1 md:ml-64 min-h-screen bg-slate-50 transition-all duration-300 relative">
+                {/* Subtle floating status indicator */}
+                <div className="hidden md:block fixed top-4 right-4 z-40">
+                    <ConnectionStatus />
+                </div>
+
+                {/* Content */}
+                <div className="pt-16 md:pt-6 p-6">
+                    {children}
+                </div>
             </main>
         </div>
     );

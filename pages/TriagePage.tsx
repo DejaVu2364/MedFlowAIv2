@@ -83,7 +83,7 @@ const TriageForm: React.FC<{ patient: Patient }> = ({ patient }) => {
                         <button type="button" onClick={() => { setSelectedPatientId(null); navigate('/'); }} className="px-4 py-2 text-sm font-medium text-text-secondary bg-background-tertiary border border-transparent rounded-md hover:bg-border-color focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
                             Cancel
                         </button>
-                        <button type="submit" disabled={isLoading} className="px-4 py-2 text-sm font-medium text-white bg-brand-blue rounded-md shadow-sm hover:bg-brand-blue-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue disabled:bg-gray-400 disabled:cursor-wait">
+                        <button type="submit" disabled={isLoading} className="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-md shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:bg-slate-400 disabled:cursor-wait">
                             {isLoading ? 'Saving...' : 'Submit Vitals'}
                         </button>
                     </div>
@@ -144,7 +144,12 @@ const TriagePatientList: React.FC = () => {
 };
 
 
-const TriagePage: React.FC = () => {
+
+interface TriagePageProps {
+    embedded?: boolean;
+}
+
+const TriagePage: React.FC<TriagePageProps> = ({ embedded = false }) => {
     const { patients, selectedPatientId } = usePatient();
     const [patientForForm, setPatientForForm] = useState<Patient | null>(null);
 
@@ -161,11 +166,13 @@ const TriagePage: React.FC = () => {
         }
     }, [selectedPatientId, patients]);
 
-    if (patientForForm) {
-        return <TriageForm patient={patientForForm} />;
-    } else {
-        return <TriagePatientList />;
+    const content = patientForForm ? <TriageForm patient={patientForForm} /> : <TriagePatientList />;
+
+    if (embedded) {
+        return <div className="max-w-[1600px] mx-auto px-4">{content}</div>;
     }
+
+    return content;
 };
 
 export default TriagePage;

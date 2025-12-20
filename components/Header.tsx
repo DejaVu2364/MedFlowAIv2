@@ -3,9 +3,8 @@ import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useUI } from '../contexts/UIContext';
 import { HomeIcon, UserPlusIcon, ClipboardDocumentListIcon, ChatBubbleLeftRightIcon, SunIcon, MoonIcon, UserCircleIcon, XMarkIcon, UsersIcon, ChartBarSquareIcon } from '@heroicons/react/24/outline';
-import { getIsFirebaseInitialized } from '../services/firebase';
 import { Button } from './ui/button';
-import { FirebaseStatus } from './common/FirebaseStatus';
+import { ConnectionStatus } from './common/ConnectionStatus';
 
 interface HeaderProps {
     onToggleChat?: () => void;
@@ -16,15 +15,15 @@ const Header: React.FC<HeaderProps> = ({ onToggleChat }) => {
     const { theme, toggleTheme } = useUI();
     const navigate = useNavigate();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const isCloudConnected = getIsFirebaseInitialized();
+
     const [showSetupInfo, setShowSetupInfo] = useState(false);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
 
     const navigation = [
         { name: 'Dashboard', path: '/', icon: <HomeIcon />, testId: 'nav-dashboard' },
         { name: 'Reception', path: '/reception', icon: <UserPlusIcon />, testId: 'nav-reception' },
-        { name: 'Triage', path: '/triage', icon: <ClipboardDocumentListIcon />, testId: 'nav-triage' },
-        { name: 'Consultant', path: '/consultant', icon: <UsersIcon />, testId: 'nav-consultant' },
+        { name: 'Triage', path: '/?view=triage', icon: <ClipboardDocumentListIcon />, testId: 'nav-triage' },
+        { name: 'Consultant', path: '/?view=consultant', icon: <UsersIcon />, testId: 'nav-consultant' },
     ];
 
     if (currentUser.role === 'Admin') {
@@ -79,8 +78,8 @@ const Header: React.FC<HeaderProps> = ({ onToggleChat }) => {
                         </div>
 
                         <div className="flex items-center gap-4">
-                            {/* Firebase Status */}
-                            <FirebaseStatus online={isCloudConnected} />
+                            {/* Connection Status */}
+                            <ConnectionStatus />
 
                             <button
                                 onClick={onToggleChat}

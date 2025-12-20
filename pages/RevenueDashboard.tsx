@@ -6,13 +6,15 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../components/ui/dialog';
-import { IndianRupee, AlertTriangle, CheckCircle, Clock, Copy, ArrowRight, BrainCircuit } from 'lucide-react';
+import { IndianRupee, AlertTriangle, CheckCircle, Clock, Copy, ArrowRight, BrainCircuit, Download } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../contexts/ToastContext';
 
 const RevenueDashboard: React.FC = () => {
     const { patients } = usePatient();
     const navigate = useNavigate();
+    const { addToast } = useToast();
 
     // Run Logic
     const risks = useMemo(() => runRevenueAudit(patients), [patients]);
@@ -45,8 +47,45 @@ const RevenueDashboard: React.FC = () => {
     };
 
     const handleCopyNote = () => {
-        // Copy logic would go here
+        if (selectedRisk) {
+            const note = `Patient ${selectedRisk.patientId.slice(0, 8)} diagnosed with suspected Sepsis (SOFA score > 2). High-grade fever and raised Procalcitonin markers necessitated escalation to broad-spectrum antibiotics as per standard antimicrobial stewardship protocol. De-escalation planned pending culture sensitivity reports (48h).`;
+            navigator.clipboard.writeText(note);
+            addToast('Justification copied to clipboard!', 'success');
+        }
         setIsJustifierOpen(false);
+    };
+
+    // CSV Export function
+    const handleExportCSV = () => {
+        if (risks.length === 0) {
+            addToast('No data to export', 'info');
+            return;
+        }
+
+        const headers = ['Patient ID', 'Risk Category', 'Description', 'Potential Loss (₹)'];
+        const rows = risks.map(r => [
+            r.patientId.slice(0, 8).toUpperCase(),
+            r.category,
+            `"${r.description.replace(/"/g, '""')}"`,
+            r.potentialLoss
+        ]);
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.join(','))
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `revenue-audit-${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        addToast('CSV exported successfully!', 'success');
     };
 
     return (
@@ -137,7 +176,18 @@ const RevenueDashboard: React.FC = () => {
                     <CardHeader>
                         <CardTitle className="text-lg flex items-center justify-between">
                             <span>Live Audit Findings</span>
-                            <Badge variant="secondary" className="font-normal">{risks.length} Issues Found</Badge>
+                            <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="font-normal">{risks.length} Issues Found</Badge>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    onClick={handleExportCSV}
+                                >
+                                    <Download className="w-3 h-3 mr-1" />
+                                    Export CSV
+                                </Button>
+                            </div>
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="flex-1 overflow-auto p-0">

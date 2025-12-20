@@ -25,8 +25,8 @@ const DischargePrintView: React.FC = () => {
                     <div>
                         <h1 className="text-3xl font-bold uppercase tracking-widest text-slate-900">MedFlow</h1>
                         <p className="text-sm font-bold text-slate-600 uppercase tracking-wide">General Hospital</p>
-                        <p className="text-xs text-slate-500 mt-1">123 Medical Center Dr, Metropolis, NY 10012</p>
-                        <p className="text-xs text-slate-500">Ph: (555) 123-4567 • Web: medflow.hospital</p>
+                        <p className="text-xs text-slate-500 mt-1">JJMMC Hospital, Davangere, Karnataka</p>
+                        <p className="text-xs text-slate-500">Ph: +91-8192-123456 • Web: medflow.hospital</p>
                     </div>
                 </div>
                 <div className="text-right">
@@ -59,7 +59,7 @@ const DischargePrintView: React.FC = () => {
                     </div>
                     <div className="flex justify-between border-b border-slate-200 pb-1">
                         <span className="font-semibold text-slate-600">Consultant In-Charge</span>
-                        <span>Dr. Sarah Chen (Cardiology)</span>
+                        <span>Dr. Harikrishnan S (General Medicine)</span>
                     </div>
                     <div className="flex justify-between border-b border-slate-200 pb-1">
                         <span className="font-semibold text-slate-600">Ward / Bed</span>
@@ -174,12 +174,12 @@ const DischargePrintView: React.FC = () => {
                     <div className="text-center">
                         <div className="h-16 w-40 mb-2 flex items-end justify-center">
                             {/* Placeholder for digital signature */}
-                            <span className="font-script text-2xl text-blue-900">Sarah Chen</span>
+                            <span className="font-script text-2xl text-blue-900">Harikrishnan S</span>
                         </div>
                         <div className="border-t border-slate-400 w-40 pt-1">
-                            <p className="text-sm font-bold uppercase">Dr. Sarah Chen</p>
-                            <p className="text-xs text-slate-500">MD, Cardiology</p>
-                            <p className="text-xs text-slate-500">Reg No: 123456</p>
+                            <p className="text-sm font-bold uppercase">Dr. Harikrishnan S</p>
+                            <p className="text-xs text-slate-500">MBBS, General Medicine</p>
+                            <p className="text-xs text-slate-500">Reg No: KA-12345</p>
                         </div>
                     </div>
                 </div>
