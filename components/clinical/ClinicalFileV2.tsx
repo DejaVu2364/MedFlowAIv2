@@ -33,6 +33,15 @@ import { TriageBadge } from '../common/TriageBadge';
 import { AIScribePanel } from './AIScribePanel';
 import { SOAPDraft } from './AIScribeDraftPreview';
 import { PatientRAGChat } from '../patient/PatientRAGChat';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogClose,
+} from "../ui/dialog";
 
 interface ClinicalFileV2Props {
     patient: Patient;
@@ -224,8 +233,9 @@ GPEFlags.displayName = 'GPEFlags';
 
 // Main Clinical File Component - NO COLLAPSIBLES
 const ClinicalFileV2: React.FC<ClinicalFileV2Props> = ({ patient }) => {
-    const { updateClinicalFileSection } = usePatient();
+    const { updateClinicalFileSection, signOffClinicalFile, isLoading } = usePatient();
     const { addToast } = useToast();
+    const [isSignOffDialogOpen, setIsSignOffDialogOpen] = useState(false);
 
     // State from patient data
     const [history, setHistory] = useState<Partial<HistorySectionData>>({
@@ -278,6 +288,18 @@ const ClinicalFileV2: React.FC<ClinicalFileV2Props> = ({ patient }) => {
         setIsSaving(false);
         addToast("Clinical file saved", "success");
     }, [patient.id, history, gpe, systemic, updateClinicalFileSection, addToast]);
+
+    // Sign Off handler
+    const handleSignOff = useCallback(async () => {
+        setIsSignOffDialogOpen(false); // Close dialog immediately or keep open? Better to close then show loading.
+        try {
+            await signOffClinicalFile(patient.id);
+            addToast("Clinical file signed off. Orders generated.", "success");
+        } catch (error) {
+            console.error("Sign off failed", error);
+            addToast("Failed to sign off. Please try again.", "error");
+        }
+    }, [patient.id, signOffClinicalFile, addToast]);
 
     // AI Scribe handler - populates fields from SOAP
     const handleDraftAccepted = useCallback((draft: SOAPDraft) => {
@@ -586,12 +608,44 @@ const ClinicalFileV2: React.FC<ClinicalFileV2Props> = ({ patient }) => {
                     <span className="text-sm text-muted-foreground">
                         {lastSaved ? `Saved ${lastSaved}` : 'Unsaved changes'}
                     </span>
-                    <Button onClick={handleSave} disabled={isSaving} className="gap-2">
-                        {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        {isSaving ? 'Saving...' : 'Save Clinical File'}
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button onClick={handleSave} disabled={isSaving || isLoading} variant="outline" className="gap-2">
+                            {isSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            {isSaving ? 'Saving...' : 'Save Draft'}
+                        </Button>
+                        <Button
+                            onClick={() => setIsSignOffDialogOpen(true)}
+                            disabled={isLoading || isSaving}
+                            className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                        >
+                            {isLoading ? <Sparkles className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                            {isLoading ? 'Processing...' : (patient.clinicalFile.status === 'signed' ? 'Re-Sign & Plan' : 'Sign Off & Plan')}
+                        </Button>
+                    </div>
                 </div>
             </footer>
+
+            {/* Sign Off Confirmation Dialog */}
+            <Dialog open={isSignOffDialogOpen} onOpenChange={setIsSignOffDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Sign Off Clinical File?</DialogTitle>
+                        <DialogDescription>
+                            This will lock the clinical file and use AI to generate suggested orders (Labs, Radius, Meds) based on your notes.
+                            <br /><br />
+                            Are you sure you want to proceed?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                        </DialogClose>
+                        <Button onClick={handleSignOff} className="bg-indigo-600 hover:bg-indigo-700">
+                            Sign Off & Generate Orders
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* RAG Chat */}
             <PatientRAGChat

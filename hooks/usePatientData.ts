@@ -341,8 +341,7 @@ export const usePatientData = (currentUser: User | null) => {
         const patient = patients.find(p => p.id === patientId);
         if (!patient) return;
 
-        const updatedFile = { ...patient.clinicalFile, status: 'signed' as const, signedAt: new Date().toISOString(), signedBy: currentUser.id };
-
+        // Generate suggestions first
         let suggestedOrders: Order[] = [];
         try {
             const result = await suggestOrdersFromClinicalFile(patient.clinicalFile.sections);
@@ -352,11 +351,40 @@ export const usePatientData = (currentUser: User | null) => {
                 category: o.category, subType: o.subType, label: o.label, payload: o.payload || {}, priority: o.priority, status: 'draft',
                 ai_provenance: { prompt_id: null, rationale: o.ai_provenance?.rationale || null },
             }));
-        } catch (e) { }
+        } catch (e) {
+            console.error("AI Order Suggestion Failed in signOffClinicalFile:", e);
+        }
 
-        updateStateAndDb(patientId, p => ({
-            ...p, clinicalFile: updatedFile, orders: [...p.orders, ...suggestedOrders]
-        }));
+        // Move update logic inside the updater to ensure we use the latest state (p)
+        // rather than the stale 'patient' snapshot from function start.
+        updateStateAndDb(patientId, p => {
+            const updatedFile = {
+                ...p.clinicalFile,
+                status: 'signed' as const,
+                signedAt: new Date().toISOString(),
+                signedBy: currentUser.id
+            };
+
+            // Deduplicate: Don't add if an order with same label was added in last 10 seconds
+            const now = Date.now();
+            const uniqueSuggestedOrders = suggestedOrders.filter(newOrd => {
+                const isDuplicate = p.orders.some(existing =>
+                    existing.label === newOrd.label &&
+                    (now - new Date(existing.createdAt).getTime() < 10000)
+                );
+                return !isDuplicate;
+            });
+
+            if (suggestedOrders.length > 0) {
+                console.log(`DEBUG: Adding ${uniqueSuggestedOrders.length} orders (filtered from ${suggestedOrders.length}).`);
+            }
+
+            return {
+                ...p,
+                clinicalFile: updatedFile,
+                orders: [...p.orders, ...uniqueSuggestedOrders]
+            };
+        });
         setIsLoading(false);
     }, [patients, currentUser, updateStateAndDb]);
 
@@ -591,7 +619,7 @@ export const usePatientData = (currentUser: User | null) => {
         }
 
         updateStateAndDb(patientId, p => ({ ...p, orders: [newOrder, ...p.orders] }));
-        addToast("Order added to drafts", 'success');
+        // addToast("Order added to drafts", 'success'); // Disabled per user request
     }, [currentUser, patients, updateStateAndDb, addToast]);
 
     const updateOrder = useCallback((patientId: string, orderId: string, updates: Partial<Order>) => {
@@ -611,7 +639,15 @@ export const usePatientData = (currentUser: User | null) => {
             });
             return { ...p, orders: newOrders };
         });
-        addToast("Orders sent successfully", 'success');
+        // addToast("Orders sent successfully", 'success'); // Disabled per user request
+    }, [updateStateAndDb, addToast]);
+
+    const removeOrder = useCallback((patientId: string, orderId: string) => {
+        updateStateAndDb(patientId, p => ({
+            ...p,
+            orders: p.orders.filter(o => o.orderId !== orderId)
+        }));
+        // addToast("Order removed", 'info'); // Disabled per user request
     }, [updateStateAndDb, addToast]);
 
     const createDraftRound = useCallback(async (patientId: string) => {
@@ -667,7 +703,7 @@ export const usePatientData = (currentUser: User | null) => {
         updateClinicalFileSection, composeHistoryWithAI, signOffClinicalFile, logAuditEvent,
         updateStateAndDb, generateDischargeSummary, saveDischargeSummary, finalizeDischarge, generatePatientOverview, generateHandoverSummary,
         summarizePatientClinicalFile, formatHpi, checkMissingInfo, summarizeSection, getFollowUpQuestions, updateFollowUpAnswer: updateFollowUpAnswerCorrect, crossCheckFile,
-        addOrderToPatient, updateOrder, sendAllDrafts,
+        addOrderToPatient, updateOrder, sendAllDrafts, removeOrder,
         createDraftRound, updateDraftRound, signOffRound, getRoundContradictions,
         resetSystem
     };

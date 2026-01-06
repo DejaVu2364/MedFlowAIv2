@@ -77,48 +77,48 @@ export const KeyTrends: React.FC<{ patient: Patient }> = ({ patient }) => {
     const metrics: TrendMetric[] = [
         {
             label: "Heart Rate",
-            value: patient.vitals?.pulse?.toString() || "82",
+            value: patient.vitals?.pulse?.toString() || "--",
             unit: "bpm",
-            trend: "up",
-            change: "+4 vs yest",
+            trend: "stable",
+            change: "vs last",
             status: "stable",
-            color: "red"
+            color: (patient.vitals?.pulse || 0) > 100 ? "red" : "green"
         },
         {
             label: "Blood Pressure",
-            value: `${patient.vitals?.bp_sys || 132}/${patient.vitals?.bp_dia || 85}`,
+            value: patient.vitals?.bp_sys ? `${patient.vitals.bp_sys}/${patient.vitals.bp_dia}` : "--/--",
             unit: "mmHg",
-            trend: "down",
-            change: "-5 vs yest",
-            status: "improving",
-            color: "blue"
+            trend: "stable",
+            change: "vs last",
+            status: "stable",
+            color: (patient.vitals?.bp_sys || 120) < 90 ? "red" : "blue"
         },
         {
             label: "SpO2",
-            value: patient.vitals?.spo2?.toString() || "98",
+            value: patient.vitals?.spo2?.toString() || "--",
             unit: "%",
             trend: "stable",
-            change: "Stable",
-            status: "stable",
-            color: "green"
+            change: "vs last",
+            status: (patient.vitals?.spo2 || 100) < 95 ? "concerning" : "stable",
+            color: (patient.vitals?.spo2 || 100) < 95 ? "red" : "green"
         },
         {
             label: "Resp Rate",
-            value: "18",
+            value: patient.vitals?.resp?.toString() || "--",
             unit: "breaths/min",
             trend: "stable",
-            change: "+1 vs yest",
+            change: "vs last",
             status: "stable",
             color: "teal"
         },
         {
             label: "Temperature",
-            value: "37.2",
+            value: patient.vitals?.temp_c?.toFixed(1) || "--",
             unit: "°C",
-            trend: "up",
-            change: "+0.4 vs yest",
-            status: "concerning",
-            color: "orange"
+            trend: "stable",
+            change: "vs last",
+            status: (patient.vitals?.temp_c || 37) > 38 ? "concerning" : "stable",
+            color: (patient.vitals?.temp_c || 37) > 38 ? "orange" : "teal"
         },
     ];
 

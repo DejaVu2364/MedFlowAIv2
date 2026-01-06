@@ -15,6 +15,7 @@ interface PatientContextType extends UsePatientDataReturn {
     toggleChecklistItem: (patientId: string, checklistId: string, itemIndex: number) => void;
     generateClinicalFileFromVoice: (patientId: string, transcript: string) => Promise<void>;
     updatePatientComplaint: (patientId: string, newComplaints: ChiefComplaint[]) => void;
+    removeOrder: (patientId: string, orderId: string) => void;
 }
 
 const PatientContext = createContext<PatientContextType | null>(null);

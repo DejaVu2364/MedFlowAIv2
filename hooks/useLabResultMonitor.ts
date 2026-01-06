@@ -167,25 +167,13 @@ export const useLabResultMonitor = (patients: Patient[]) => {
             // Add to alert history
             setAlerts(prev => [...newAlerts, ...prev].slice(0, 50)); // Keep last 50
 
+            /*
             // Fire toasts only after first render (avoid initial flood)
+            // DISABLED FOR ENTERPRISE MODE - No popups
             if (!isFirstRender.current) {
-                const criticalAlerts = newAlerts.filter(a => a.severity === 'critical');
-                const warningAlerts = newAlerts.filter(a => a.severity === 'warning');
-
-                // Critical alerts get immediate attention
-                criticalAlerts.forEach(alert => {
-                    addToast(alert.message, 'error');
-                });
-
-                // Batch warning alerts
-                if (warningAlerts.length > 0) {
-                    if (warningAlerts.length === 1) {
-                        addToast(warningAlerts[0].message, 'info');
-                    } else {
-                        addToast(`⚠️ ${warningAlerts.length} new abnormal lab results`, 'info');
-                    }
-                }
+                // ... logic removed ...
             }
+            */
         }
 
         isFirstRender.current = false;

@@ -19,7 +19,8 @@ import {
     AlertCircle,
     AlertTriangle,
     CheckCircle,
-    Sparkles
+    Sparkles,
+    Trash2
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -306,7 +307,7 @@ const getSuggestedOrders = (condition: string): { label: string; category: Order
 };
 
 const OrdersTab: React.FC<{ patient: Patient }> = React.memo(({ patient }) => {
-    const { updateOrder, addOrderToPatient, sendAllDrafts } = usePatient();
+    const { updateOrder, addOrderToPatient, sendAllDrafts, removeOrder } = usePatient(); // Added removeOrder
     const [activeCategory, setActiveCategory] = useState<OrderCategory>('investigation');
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -406,17 +407,17 @@ const OrdersTab: React.FC<{ patient: Patient }> = React.memo(({ patient }) => {
                             className={cn(
                                 "flex items-center justify-between p-3 rounded-lg border shadow-sm transition-all duration-200",
                                 order.status === 'draft'
-                                    ? "bg-draft border-draft-foreground/30 shadow-[0_2px_8px_rgba(251,191,36,0.05)]"
+                                    ? "bg-amber-50 border-amber-200 shadow-[0_2px_8px_rgba(251,191,36,0.05)]"
                                     : "bg-background border-border/50 hover:shadow-md hover:border-border/80"
                             )}
                         >
                             <div className="flex-1 mr-4">
                                 <div className="flex items-center gap-2 mb-1">
-                                    <span className={cn("font-medium text-sm", order.status === 'draft' ? "text-draft-foreground font-semibold" : "text-foreground")}>
+                                    <span className={cn("font-medium text-sm", order.status === 'draft' ? "text-amber-700 font-semibold" : "text-foreground")}>
                                         {order.label}
                                     </span>
                                     {order.status === 'draft' && (
-                                        <Badge variant="outline" className="text-[10px] bg-draft-foreground/10 text-draft-foreground border-draft-foreground/20 font-medium px-2">
+                                        <Badge variant="outline" className="text-[10px] bg-amber-100 text-amber-700 border-amber-200 font-medium px-2">
                                             Draft
                                         </Badge>
                                     )}
@@ -446,12 +447,24 @@ const OrdersTab: React.FC<{ patient: Patient }> = React.memo(({ patient }) => {
                                     variant={order.status === 'draft' ? 'default' : 'secondary'}
                                     className={cn(
                                         "h-8 px-4 text-xs font-semibold shadow-sm",
-                                        order.status === 'draft' && "bg-draft-foreground hover:bg-draft-foreground/90 text-white border-0"
+                                        order.status === 'draft' && "bg-amber-600 hover:bg-amber-700 text-white border-0"
                                     )}
                                     onClick={() => updateOrder(patient.id, order.orderId, { status: 'sent' })}
                                 >
                                     {order.status === 'draft' ? 'Sign & Send' : 'Update'}
                                 </Button>
+                                {order.status === 'draft' && (
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-red-500 hover:bg-red-50 ml-1"
+                                        onClick={() => removeOrder(patient.id, order.orderId)}
+                                        title="Remove Order"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                )}
+
                             </div>
                         </div>
                     )) : (

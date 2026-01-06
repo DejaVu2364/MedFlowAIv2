@@ -143,7 +143,7 @@ const App: React.FC = () => {
             {/* Version: 1.0.2 - Vitals Monitor + Simulation Badge */}
             <ErrorBoundary>
                 <OfflineBanner />
-                <SimulationBadge />
+
                 <ToastProvider>
                     <UIProvider>
                         <AuthProvider>

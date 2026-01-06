@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { Patient, VitalsMeasurements } from '../types';
 import { useToast } from '../contexts/ToastContext';
 
@@ -199,8 +199,9 @@ export const checkVitalsThresholds = (
 export const useVitalsMonitor = (patients: Patient[]) => {
     const { addToast } = useToast();
 
-    // Track which alerts we've already shown to avoid duplicates
-    const alertedPatients = new Map<string, number>();
+    // Use refs to persist state across renders without triggering re-renders
+    const alertedPatientsRef = useRef<Map<string, number>>(new Map());
+    const isFirstLoadRef = useRef<boolean>(true);
 
     const checkAllPatients = useCallback(() => {
         const allAlerts: VitalsAlert[] = [];
@@ -238,36 +239,13 @@ export const useVitalsMonitor = (patients: Patient[]) => {
         return allAlerts;
     }, [patients]);
 
-    // Monitor for changes in patient vitals
+    // Monitor for changes in patient vitals - ALERTS DISABLED FOR ENTERPRISE MODE
+    // Vitals alerts are now passive (dashboard only) instead of active toasts
+    /* 
     useEffect(() => {
-        const alerts = checkAllPatients();
-
-        // Show critical alerts immediately
-        const criticalAlerts = alerts.filter(a => a.severity === 'critical');
-        criticalAlerts.forEach(alert => {
-            const lastAlertTime = alertedPatients.get(`${alert.patientId}-${alert.parameter}`);
-            const now = Date.now();
-
-            // Only show alert if we haven't alerted about this in the last 60 seconds
-            if (!lastAlertTime || now - lastAlertTime > 60000) {
-                addToast(alert.message, 'error');
-                alertedPatients.set(`${alert.patientId}-${alert.parameter}`, now);
-            }
-        });
-
-        // Show warning alerts with lower frequency
-        const warningAlerts = alerts.filter(a => a.severity === 'warning');
-        warningAlerts.forEach(alert => {
-            const lastAlertTime = alertedPatients.get(`${alert.patientId}-${alert.parameter}`);
-            const now = Date.now();
-
-            // Only show warning if we haven't alerted about this in the last 5 minutes
-            if (!lastAlertTime || now - lastAlertTime > 300000) {
-                addToast(alert.message, 'info');
-                alertedPatients.set(`${alert.patientId}-${alert.parameter}`, now);
-            }
-        });
-    }, [patients, checkAllPatients, addToast]);
+       // Toast logic removed to prevent notification spam
+    }, [patients, checkAllPatients, addToast]); 
+    */
 
     return {
         checkAllPatients,
