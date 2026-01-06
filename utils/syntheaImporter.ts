@@ -468,7 +468,7 @@ export const generateSyntheaData = (): Patient[] => {
                 createdBy: 'doc',
                 createdAt: new Date(Date.now() - 3.5 * 3600000).toISOString(),
                 ai_provenance: { prompt_id: null, rationale: 'ACS workup' },
-                priority: 'stat',
+                priority: 'STAT',
                 payload: {}
             },
             {
@@ -481,7 +481,7 @@ export const generateSyntheaData = (): Patient[] => {
                 createdBy: 'doc',
                 createdAt: new Date(Date.now() - 3.5 * 3600000).toISOString(),
                 ai_provenance: { prompt_id: null, rationale: null },
-                priority: 'stat',
+                priority: 'STAT',
                 payload: {}
             },
             {
@@ -494,7 +494,7 @@ export const generateSyntheaData = (): Patient[] => {
                 createdBy: 'doc',
                 createdAt: new Date(Date.now() - 3 * 3600000).toISOString(),
                 ai_provenance: { prompt_id: null, rationale: null },
-                priority: 'stat',
+                priority: 'STAT',
                 payload: {}
             }
         ],

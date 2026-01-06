@@ -38,34 +38,39 @@ interface ClinicalFileV2Props {
     patient: Patient;
 }
 
-// Section Header Component
-const SectionHeader: React.FC<{
+// Section Header Component - Memoized for performance
+const SectionHeader = React.memo<{
     title: string;
     icon: React.ElementType;
     description?: string;
     badge?: string;
     aiButton?: boolean;
     onAIClick?: () => void;
-}> = ({ title, icon: Icon, description, badge, aiButton, onAIClick }) => (
-    <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-            <Icon className="w-4 h-4 text-teal-600" />
-            <h3 className="font-semibold text-sm">{title}</h3>
-            {badge && <Badge variant="secondary" className="text-xs">{badge}</Badge>}
+}>((props) => {
+    const { title, icon: Icon, description, badge, aiButton, onAIClick } = props;
+    return (
+        <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+                <Icon className="w-4 h-4 text-teal-600" />
+                <h3 className="font-semibold text-sm">{title}</h3>
+                {badge && <Badge variant="secondary" className="text-xs">{badge}</Badge>}
+            </div>
+            {aiButton && onAIClick && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-teal-600" onClick={onAIClick}>
+                    <Sparkles className="w-3 h-3" /> AI Assist
+                </Button>
+            )}
         </div>
-        {aiButton && onAIClick && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-teal-600" onClick={onAIClick}>
-                <Sparkles className="w-3 h-3" /> AI Assist
-            </Button>
-        )}
-    </div>
-);
+    );
+});
+SectionHeader.displayName = 'SectionHeader';
 
-// Chief Complaints Editor
-const ChiefComplaintsEditor: React.FC<{
+// Chief Complaints Editor - Memoized for performance
+const ChiefComplaintsEditor = React.memo<{
     complaints: Complaint[];
     onChange: (complaints: Complaint[]) => void;
-}> = ({ complaints, onChange }) => {
+}>((props) => {
+    const { complaints, onChange } = props;
     const addComplaint = () => {
         onChange([...complaints, { symptom: '', duration: '', severity: '', notes: '' }]);
     };
@@ -116,13 +121,15 @@ const ChiefComplaintsEditor: React.FC<{
             </Button>
         </div>
     );
-};
+});
+ChiefComplaintsEditor.displayName = 'ChiefComplaintsEditor';
 
-// Allergy Editor
-const AllergyEditor: React.FC<{
+// Allergy Editor - Memoized for performance
+const AllergyEditor = React.memo<{
     allergies: Allergy[];
     onChange: (allergies: Allergy[]) => void;
-}> = ({ allergies, onChange }) => {
+}>((props) => {
+    const { allergies, onChange } = props;
     const addAllergy = () => {
         onChange([...allergies, { substance: '', reaction: '', severity: '' }]);
     };
@@ -176,13 +183,15 @@ const AllergyEditor: React.FC<{
             </Button>
         </div>
     );
-};
+});
+AllergyEditor.displayName = 'AllergyEditor';
 
-// GPE Flags Grid
-const GPEFlags: React.FC<{
+// GPE Flags Grid - Memoized for performance
+const GPEFlags = React.memo<{
     flags: GPESectionData['flags'];
     onChange: (flags: GPESectionData['flags']) => void;
-}> = ({ flags, onChange }) => {
+}>((props) => {
+    const { flags, onChange } = props;
     const items = [
         { key: 'pallor', label: 'Pallor' },
         { key: 'icterus', label: 'Icterus' },
@@ -210,7 +219,8 @@ const GPEFlags: React.FC<{
             ))}
         </div>
     );
-};
+});
+GPEFlags.displayName = 'GPEFlags';
 
 // Main Clinical File Component - NO COLLAPSIBLES
 const ClinicalFileV2: React.FC<ClinicalFileV2Props> = ({ patient }) => {

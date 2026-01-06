@@ -7,6 +7,7 @@ import { suggestOrdersFromClinicalFile } from '../../services/geminiService';
 import { ClinicalFileSections, Patient } from '../../types';
 import { OrderSuggestionItem, SuggestedOrderDisplay } from '../orders/OrderSuggestionItem';
 import { Separator } from '../ui/separator';
+import { AILoadingSkeleton } from '../ui/AILoadingSkeleton';
 
 interface AIOrderSuggestionsPanelProps {
     clinicalFileSections: ClinicalFileSections;
@@ -95,10 +96,11 @@ export const AIOrderSuggestionsPanel: React.FC<AIOrderSuggestionsPanelProps> = (
                 </div>
 
                 {isLoading && (
-                    <div className="py-8 flex flex-col items-center justify-center text-muted-foreground gap-3">
-                        <Loader2 className="w-6 h-6 animate-spin text-brand-purple" />
-                        <span className="text-sm">Analyzing clinical context...</span>
-                    </div>
+                    <AILoadingSkeleton
+                        lines={4}
+                        message="Analyzing clinical context & generating orders..."
+                        className="border-brand-purple/20 from-brand-purple/5 to-indigo-50/50"
+                    />
                 )}
 
                 {error && (

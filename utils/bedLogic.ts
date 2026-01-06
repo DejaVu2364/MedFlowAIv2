@@ -98,7 +98,7 @@ export const generateHospitalInfrastructure = (): Bed[] => {
 
 /**
  * Allocates patients to beds and calculates financial metrics.
- * Since we don't have a real persistent bed state, we deterministically assign active patients.
+ * PRIORITY: Uses real patient.bedAssignment first, then falls back to triage-based assignment.
  */
 export const allocatePatientsToBeds = (patients: Patient[]): Bed[] => {
     const beds = generateHospitalInfrastructure();
@@ -106,35 +106,29 @@ export const allocatePatientsToBeds = (patients: Patient[]): Bed[] => {
     // Filter active patients (not discharged)
     const activePatients = patients.filter(p => !p.status || p.status !== 'Discharged');
 
-    // Deterministic Assignment Strategy
-    // 1. Red Triage -> ICU
-    // 2. Yellow Triage -> Private/Semi
-    // 3. Green Triage -> General
-
-    const icuPatients = activePatients.filter(p => p.triage?.level === 'Red');
-    const wardPatients = activePatients.filter(p => p.triage?.level === 'Yellow');
-    const genPatients = activePatients.filter(p => !p.triage || p.triage.level === 'Green');
-
-    let pIndex = 0;
-
-    // Helper to assign
+    // Helper to assign a patient to a bed
     const assign = (bed: Bed, patient: Patient) => {
-        // Calculate LOS
-        // Mock Admission Date: Assume admitted 2-5 days ago based on ID hash if not provided
-        // Ideally admissionDate should be on patient object. If missing, mock it.
-
         const now = new Date();
-        const mockDaysAgo = (patient.id.charCodeAt(0) % 5) + 1; // 1 to 5 days
-        const admissionDate = new Date(now.getTime() - (mockDaysAgo * 24 * 60 * 60 * 1000));
 
-        // In a real app, use patient.admissionDate
+        // Use REAL admission date if available, otherwise fallback to mock
+        let admissionDate: Date;
+        let los: number;
 
-        const los = Math.max(1, mockDaysAgo);
+        if (patient.admissionDate) {
+            admissionDate = new Date(patient.admissionDate);
+            los = Math.max(1, Math.ceil((now.getTime() - admissionDate.getTime()) / (1000 * 60 * 60 * 24)));
+        } else {
+            // Fallback: mock based on ID hash
+            const mockDaysAgo = (patient.id.charCodeAt(0) % 5) + 1;
+            admissionDate = new Date(now.getTime() - (mockDaysAgo * 24 * 60 * 60 * 1000));
+            los = mockDaysAgo;
+        }
+
         const currentBill = bed.dailyRate * los;
 
-        // Mock Insurance Limit: 50% chance of having a low cap
-        const hasInsuranceCap = patient.id.charCodeAt(1) % 2 === 0;
-        const insuranceLimit = hasInsuranceCap ? (bed.dailyRate > 10000 ? 15000 : 5000) : undefined;
+        // Use REAL insurance limit if available
+        const insuranceLimit = patient.insuranceInfo?.roomRentCap ||
+            (patient.paymentMode === 'Insurance' ? (bed.dailyRate > 10000 ? 15000 : 5000) : undefined);
 
         bed.status = 'occupied';
         bed.patient = {
@@ -150,25 +144,41 @@ export const allocatePatientsToBeds = (patients: Patient[]): Bed[] => {
         };
     };
 
+    // STEP 1: First, honor patients with REAL bed assignments
+    const patientsWithAssignment = activePatients.filter(p => p.bedAssignment?.bedId);
+    const patientsWithoutAssignment = activePatients.filter(p => !p.bedAssignment?.bedId);
+
+    patientsWithAssignment.forEach(patient => {
+        const bed = beds.find(b => b.id === patient.bedAssignment!.bedId);
+        if (bed && bed.status === 'available') {
+            assign(bed, patient);
+        }
+    });
+
+    // STEP 2: For unassigned patients, use triage-based allocation
+    const icuPatients = patientsWithoutAssignment.filter(p => p.triage?.level === 'Red');
+    const wardPatients = patientsWithoutAssignment.filter(p => p.triage?.level === 'Yellow');
+    const genPatients = patientsWithoutAssignment.filter(p => !p.triage || p.triage.level === 'Green');
+
     // Fill ICU
-    beds.filter(b => b.type === 'ICU').forEach(bed => {
+    beds.filter(b => b.type === 'ICU' && b.status === 'available').forEach(bed => {
         if (icuPatients.length > 0) assign(bed, icuPatients.shift()!);
     });
 
     // Fill Private/Semi
-    beds.filter(b => b.type === 'Private' || b.type === 'Semi-Private').forEach(bed => {
+    beds.filter(b => (b.type === 'Private' || b.type === 'Semi-Private') && b.status === 'available').forEach(bed => {
         if (wardPatients.length > 0) assign(bed, wardPatients.shift()!);
     });
 
     // Fill General Male
     const genMale = genPatients.filter(p => p.gender === 'Male');
-    beds.filter(b => b.type === 'General Male').forEach(bed => {
+    beds.filter(b => b.type === 'General Male' && b.status === 'available').forEach(bed => {
         if (genMale.length > 0) assign(bed, genMale.shift()!);
     });
 
     // Fill General Female
     const genFemale = genPatients.filter(p => p.gender === 'Female');
-    beds.filter(b => b.type === 'General Female').forEach(bed => {
+    beds.filter(b => b.type === 'General Female' && b.status === 'available').forEach(bed => {
         if (genFemale.length > 0) assign(bed, genFemale.shift()!);
     });
 

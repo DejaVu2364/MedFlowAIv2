@@ -5,6 +5,7 @@ import { useUI } from '../contexts/UIContext';
 import { HomeIcon, UserPlusIcon, ClipboardDocumentListIcon, ChatBubbleLeftRightIcon, SunIcon, MoonIcon, UserCircleIcon, XMarkIcon, UsersIcon, ChartBarSquareIcon } from '@heroicons/react/24/outline';
 import { Button } from './ui/button';
 import { ConnectionStatus } from './common/ConnectionStatus';
+import { AlertBadge } from './AlertBadge';
 
 interface HeaderProps {
     onToggleChat?: () => void;
@@ -77,9 +78,12 @@ const Header: React.FC<HeaderProps> = ({ onToggleChat }) => {
                             </nav>
                         </div>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
                             {/* Connection Status */}
                             <ConnectionStatus />
+
+                            {/* Lab Alerts */}
+                            <AlertBadge />
 
                             <button
                                 onClick={onToggleChat}

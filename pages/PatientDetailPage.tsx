@@ -18,7 +18,8 @@ import {
     Scissors,
     AlertCircle,
     AlertTriangle,
-    CheckCircle
+    CheckCircle,
+    Sparkles
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -102,6 +103,124 @@ const PatientHeader: React.FC<{ patient: Patient; onTabChange: (tab: any) => voi
 });
 
 
+// --- CLINICAL CONTEXT BAR (Persistent across all tabs) ---
+// Doctor's Quick Glance: Active Problems, Pending Actions, Key Metrics
+
+const ClinicalContextBar: React.FC<{ patient: Patient }> = React.memo(({ patient }) => {
+    // Calculate days since admission
+    const daysSinceAdmission = patient.admissionDate
+        ? Math.floor((Date.now() - new Date(patient.admissionDate).getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+
+    // Count pending orders
+    const pendingOrders = patient.orders?.filter(o => o.status === 'draft').length || 0;
+    const urgentOrders = patient.orders?.filter(o => o.priority === 'STAT' || o.priority === 'urgent').length || 0;
+
+    // Clinical file status
+    const clinicalFileStatus = patient.clinicalFile?.status || 'draft';
+
+    // Active problems (show top 3)
+    const activeProblems = patient.activeProblems?.slice(0, 3) || [];
+
+    // Check if any vitals are concerning
+    const vitals = patient.vitals;
+    const concerningVitals = vitals && (
+        (vitals.spo2 && vitals.spo2 < 94) ||
+        (vitals.pulse && vitals.pulse > 110) ||
+        (vitals.temp_c && vitals.temp_c > 38.5) ||
+        (vitals.bp_sys && vitals.bp_sys < 90)
+    );
+
+    return (
+        <div className="flex items-center gap-3 py-2 px-4 bg-gradient-to-r from-slate-50 to-zinc-50 dark:from-zinc-900 dark:to-zinc-800 rounded-lg border border-border/30 mb-4 overflow-x-auto">
+            {/* Active Problems */}
+            <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] uppercase font-bold text-muted-foreground">Problems:</span>
+                {activeProblems.length > 0 ? (
+                    <div className="flex gap-1">
+                        {activeProblems.map(prob => (
+                            <Badge
+                                key={prob.id}
+                                variant="secondary"
+                                className={cn(
+                                    "text-[10px] font-medium py-0.5",
+                                    prob.status === 'urgent' && "bg-rose-100 text-rose-700 border-rose-200",
+                                    prob.status === 'improving' && "bg-emerald-100 text-emerald-700 border-emerald-200",
+                                    prob.status === 'monitor' && "bg-amber-100 text-amber-700 border-amber-200"
+                                )}
+                            >
+                                {prob.description.length > 25 ? prob.description.slice(0, 22) + '...' : prob.description}
+                            </Badge>
+                        ))}
+                    </div>
+                ) : (
+                    <span className="text-xs text-muted-foreground">--</span>
+                )}
+            </div>
+
+            <div className="h-4 w-px bg-border/50" />
+
+            {/* Pending Orders */}
+            <div className="flex items-center gap-1.5 shrink-0">
+                <ClipboardList className="w-3.5 h-3.5 text-muted-foreground" />
+                {pendingOrders > 0 ? (
+                    <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200 font-semibold py-0.5">
+                        {pendingOrders} pending
+                    </Badge>
+                ) : (
+                    <span className="text-xs text-emerald-600 font-medium">✓ Orders sent</span>
+                )}
+                {urgentOrders > 0 && (
+                    <Badge variant="destructive" className="text-[10px] py-0.5">
+                        {urgentOrders} urgent
+                    </Badge>
+                )}
+            </div>
+
+            <div className="h-4 w-px bg-border/50" />
+
+            {/* Length of Stay */}
+            <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] uppercase font-bold text-muted-foreground">LOS:</span>
+                <span className={cn(
+                    "text-xs font-bold",
+                    daysSinceAdmission > 5 ? "text-amber-600" : "text-foreground"
+                )}>
+                    {daysSinceAdmission}d
+                </span>
+            </div>
+
+            <div className="h-4 w-px bg-border/50" />
+
+            {/* Clinical File Status */}
+            <div className="flex items-center gap-1.5 shrink-0">
+                <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                {clinicalFileStatus === 'signed' ? (
+                    <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" /> Signed
+                    </span>
+                ) : (
+                    <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200 font-medium py-0.5">
+                        File: Draft
+                    </Badge>
+                )}
+            </div>
+
+            {/* Vital Alert */}
+            {concerningVitals && (
+                <>
+                    <div className="h-4 w-px bg-border/50" />
+                    <Badge variant="destructive" className="text-[10px] py-0.5 animate-pulse">
+                        <AlertTriangle className="w-3 h-3 mr-1" />
+                        Vitals Alert
+                    </Badge>
+                </>
+            )}
+        </div>
+    );
+});
+
+
 // --- ORDERS TAB (Legacy Logic Wrapped) ---
 
 const CATALOG_ITEMS: Record<OrderCategory, string[]> = {
@@ -141,6 +260,49 @@ const CATALOG_ITEMS: Record<OrderCategory, string[]> = {
         'Cardiology Consult', 'General Surgery Consult', 'Orthopedics Consult', 'Neurology Consult',
         'Gastroenterology Consult', 'Nephrology Consult', 'Infectious Disease Consult', 'Physiotherapy', 'Dietician'
     ]
+};
+
+// AI Order Suggestion Helper - maps conditions to common orders
+const getSuggestedOrders = (condition: string): { label: string; category: OrderCategory }[] => {
+    const c = condition.toLowerCase();
+    if (c.includes('fever') || c.includes('infection')) {
+        return [
+            { label: 'Complete Blood Count (CBC)', category: 'investigation' },
+            { label: 'C-Reactive Protein (CRP)', category: 'investigation' },
+            { label: 'Blood Culture x2', category: 'investigation' },
+        ];
+    }
+    if (c.includes('chest pain') || c.includes('cardiac') || c.includes('stemi') || c.includes('mi')) {
+        return [
+            { label: 'Troponin I', category: 'investigation' },
+            { label: 'ECG (12 Lead)', category: 'procedure' },
+            { label: 'CXR - PA View', category: 'radiology' },
+        ];
+    }
+    if (c.includes('breath') || c.includes('copd') || c.includes('asthma') || c.includes('dyspnea')) {
+        return [
+            { label: 'Arterial Blood Gas (ABG)', category: 'investigation' },
+            { label: 'CXR - PA View', category: 'radiology' },
+            { label: 'Nebulization - Salbutamol + Ipratropium', category: 'medication' },
+        ];
+    }
+    if (c.includes('diabetes') || c.includes('dm') || c.includes('sugar')) {
+        return [
+            { label: 'Hemoglobin A1c', category: 'investigation' },
+            { label: 'Renal Function Test (Urea/Creat)', category: 'investigation' },
+        ];
+    }
+    if (c.includes('head') || c.includes('injury') || c.includes('trauma')) {
+        return [
+            { label: 'CT Head Non-Contrast', category: 'radiology' },
+            { label: 'Complete Blood Count (CBC)', category: 'investigation' },
+        ];
+    }
+    // Default suggestions
+    return [
+        { label: 'Complete Blood Count (CBC)', category: 'investigation' },
+        { label: 'Basic Metabolic Panel (BMP)', category: 'investigation' },
+    ];
 };
 
 const OrdersTab: React.FC<{ patient: Patient }> = React.memo(({ patient }) => {
@@ -228,7 +390,11 @@ const OrdersTab: React.FC<{ patient: Patient }> = React.memo(({ patient }) => {
             <div className="lg:col-span-8 flex flex-col border border-border/50 dark:border-white/5 rounded-xl bg-card overflow-hidden">
                 <div className="p-4 border-b border-border/50 dark:border-white/5 flex justify-between items-center bg-muted/30">
                     <h3 className="font-semibold text-sm">Active Orders ({filteredOrders.length})</h3>
-                    <Button size="sm" onClick={() => sendAllDrafts(patient.id, activeCategory)}>
+                    <Button
+                        size="sm"
+                        onClick={() => sendAllDrafts(patient.id, activeCategory)}
+                        disabled={filteredOrders.filter(o => o.status === 'draft').length === 0}
+                    >
                         <Send className="w-3.5 h-3.5 mr-2" />
                         Sign & Send
                     </Button>
@@ -289,11 +455,65 @@ const OrdersTab: React.FC<{ patient: Patient }> = React.memo(({ patient }) => {
                             </div>
                         </div>
                     )) : (
-                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground/40">
-                            <div className="p-4 rounded-full bg-muted/20 mb-3">
-                                <ClipboardList className="w-8 h-8 opacity-50" />
+                        <div className="flex flex-col items-center justify-center h-full py-8">
+                            <div className="p-4 rounded-full bg-indigo-50 mb-4">
+                                <Sparkles className="w-8 h-8 text-indigo-500" />
                             </div>
-                            <p className="text-sm font-medium">No active orders</p>
+                            <p className="text-sm font-semibold text-foreground mb-2">No orders yet</p>
+                            <p className="text-xs text-muted-foreground mb-4 text-center max-w-xs">
+                                Based on this patient's presentation, consider:
+                            </p>
+                            {/* AI-Suggested Quick Orders */}
+                            <div className="flex flex-col gap-3 max-w-md">
+                                {patient.chiefComplaints?.slice(0, 1).map(c => {
+                                    const suggestions = getSuggestedOrders(c.complaint);
+                                    return (
+                                        <div key={c.complaint} className="flex flex-col gap-2">
+                                            <span className="text-[10px] font-bold text-indigo-600 uppercase">
+                                                From Complaint: {c.complaint}
+                                            </span>
+                                            <div className="flex flex-wrap gap-2">
+                                                {suggestions.map(s => (
+                                                    <Button
+                                                        key={s.label}
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="text-xs h-8 gap-1.5 bg-indigo-50/50 hover:bg-indigo-100 border-indigo-200 text-indigo-700"
+                                                        onClick={() => handleCatalogClick(s.label)}
+                                                    >
+                                                        <Plus className="w-3 h-3" />
+                                                        {s.label}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {patient.activeProblems?.slice(0, 1).map(p => {
+                                    const suggestions = getSuggestedOrders(p.description);
+                                    return (
+                                        <div key={p.id} className="flex flex-col gap-2">
+                                            <span className="text-[10px] font-bold text-emerald-600 uppercase">
+                                                From Problem: {p.description.slice(0, 30)}
+                                            </span>
+                                            <div className="flex flex-wrap gap-2">
+                                                {suggestions.slice(0, 2).map(s => (
+                                                    <Button
+                                                        key={s.label}
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="text-xs h-8 gap-1.5 bg-emerald-50/50 hover:bg-emerald-100 border-emerald-200 text-emerald-700"
+                                                        onClick={() => handleCatalogClick(s.label)}
+                                                    >
+                                                        <Plus className="w-3 h-3" />
+                                                        {s.label}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -345,6 +565,7 @@ const PatientDetailPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-background pb-20 animate-in fade-in duration-500">
             <PatientHeader patient={patient} onTabChange={handleTabChange} navigate={navigate} />
+            <ClinicalContextBar patient={patient} />
 
             <div className="w-full px-6">
                 {/* Tabs - v0 Style */}

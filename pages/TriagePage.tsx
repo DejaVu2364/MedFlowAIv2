@@ -63,6 +63,30 @@ const TriageForm: React.FC<{ patient: Patient }> = ({ patient }) => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Quick Fill Button */}
+                    <div className="flex items-center justify-between bg-indigo-50 rounded-lg px-4 py-3">
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-indigo-700 uppercase">Demo Mode</span>
+                            <span className="text-xs text-indigo-600">Quick fill sample vitals based on triage level</span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                // Generate sample vitals based on AI triage level
+                                const level = patient.aiTriage?.suggested_triage || 'Yellow';
+                                if (level === 'Red') {
+                                    setVitals({ hr: 118, bpSys: 88, bpDia: 55, rr: 28, spo2: 88, temp: 38.9 });
+                                } else if (level === 'Yellow') {
+                                    setVitals({ hr: 95, bpSys: 128, bpDia: 80, rr: 20, spo2: 95, temp: 37.8 });
+                                } else {
+                                    setVitals({ hr: 72, bpSys: 118, bpDia: 76, rr: 16, spo2: 99, temp: 36.8 });
+                                }
+                            }}
+                            className="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
+                        >
+                            ⚡ Quick Fill
+                        </button>
+                    </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                         {Object.entries({ hr: 'Heart Rate (bpm)', bpSys: 'BP Systolic (mmHg)', bpDia: 'BP Diastolic (mmHg)', rr: 'Resp. Rate (/min)', spo2: 'SpO2 (%)', temp: 'Temp (°C)' }).map(([key, label]) => (
                             <div key={key}>

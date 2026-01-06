@@ -57,12 +57,11 @@ const ReceptionPage: React.FC = () => {
 
         try {
             console.log("DEBUG: Calling addPatient");
-            await addPatient(formData);
-            console.log("DEBUG: addPatient success");
-            // Short delay to ensure state updates propagate if needed
-            await new Promise(r => setTimeout(r, 100));
-            console.log("DEBUG: Navigating to /");
-            navigate('/', { replace: true });
+            const newPatient = await addPatient(formData);
+            console.log("DEBUG: addPatient success, patient:", newPatient?.id);
+            // Navigate to triage queue for seamless workflow
+            console.log("DEBUG: Navigating to triage queue");
+            navigate('/?view=triage', { replace: true });
         } catch (e) {
             console.error("Registration failed", e);
             console.log("DEBUG: Registration error", e);

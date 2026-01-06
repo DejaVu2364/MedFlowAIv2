@@ -2,7 +2,7 @@
 export type Role = 'Intern' | 'Doctor' | 'Admin';
 export type TriageLevel = 'Red' | 'Yellow' | 'Green' | 'None';
 export type PatientStatus = 'Waiting for Triage' | 'Waiting for Doctor' | 'In Treatment' | 'Discharged';
-export type Department = 'Cardiology' | 'Orthopedics' | 'General Medicine' | 'Obstetrics' | 'Neurology' | 'Emergency' | 'Unknown';
+export type Department = 'Cardiology' | 'Orthopedics' | 'General Medicine' | 'Obstetrics' | 'Neurology' | 'Emergency' | 'Pulmonology' | 'Nephrology' | 'Pediatrics' | 'Surgery' | 'Gastroenterology' | 'Unknown';
 
 export interface User {
     id: string;
@@ -169,16 +169,18 @@ export interface Order {
 }
 
 export interface Result {
-    resultId: string;
+    resultId?: string;
+    id?: string; // Legacy alias for resultId
     patientId: string;
-    orderId: string;
-    type: 'lab' | 'imaging';
+    orderId?: string;
+    type?: 'lab' | 'imaging';
     name: string;
     timestamp: string;
-    status: 'final' | 'preliminary';
+    status?: 'final' | 'preliminary';
     isAbnormal: boolean;
     value: string;
     unit?: string;
+    normalRange?: string;
     referenceRange?: string;
     delta?: {
         previousValue: string;
@@ -250,7 +252,7 @@ export interface HistorySectionData {
 }
 
 export interface GPESectionData {
-    general_appearance: 'well' | 'ill' | 'toxic' | 'cachectic' | '';
+    general_appearance: 'well' | 'fair' | 'ill' | 'toxic' | 'cachectic' | '';
     vitals: Partial<VitalsMeasurements>;
     build: 'normal' | 'obese' | 'cachectic' | '';
     hydration: 'normal' | 'mild' | 'moderate' | 'severe' | '';

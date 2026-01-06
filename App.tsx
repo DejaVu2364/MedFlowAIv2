@@ -44,6 +44,9 @@ const OpsCommandCenter = lazyLoad(() => import('./pages/OpsCommandCenter'));
 
 import Header from './components/Header';
 import { OfflineBanner } from './components/OfflineBanner';
+
+import { VitalsMonitorProvider } from './components/VitalsMonitorProvider';
+import { LabAlertProvider } from './components/LabAlertProvider';
 import ErrorBoundary from './components/ErrorBoundary';
 
 import { MedicalLayout } from './components/layout/MedicalLayout';
@@ -137,15 +140,19 @@ const App: React.FC = () => {
     }, []);
     return (
         <Router>
-            {/* Version: 1.0.1 - Force Update */}
+            {/* Version: 1.0.2 - Vitals Monitor + Simulation Badge */}
             <ErrorBoundary>
                 <OfflineBanner />
+                <SimulationBadge />
                 <ToastProvider>
                     <UIProvider>
                         <AuthProvider>
                             <PatientProvider>
-                                <AppRoutes />
-
+                                <VitalsMonitorProvider>
+                                    <LabAlertProvider>
+                                        <AppRoutes />
+                                    </LabAlertProvider>
+                                </VitalsMonitorProvider>
                             </PatientProvider>
                         </AuthProvider>
                     </UIProvider>

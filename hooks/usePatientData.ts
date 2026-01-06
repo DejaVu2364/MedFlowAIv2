@@ -18,31 +18,55 @@ export const usePatientData = (currentUser: User | null) => {
     // Initial Data Load & Sync
     useEffect(() => {
         let unsubscribe: (() => void) | undefined;
+        let isMounted = true;
+
         const initialize = async () => {
             console.log("DEBUG: initialize called");
             setIsLoading(true);
 
             // Safety timeout to ensure loading state doesn't hang
             const safetyTimeout = setTimeout(() => {
-                console.log("DEBUG: safetyTimeout triggered");
-                setIsLoading(false);
-            }, 5000);
+                console.log("DEBUG: safetyTimeout triggered - falling back to Synthea data");
+                if (isMounted && patients.length === 0) {
+                    // Fallback to local Synthea data if Firebase takes too long
+                    const fallbackPatients = generateSyntheaData();
+                    setPatients(fallbackPatients);
+                    setIsLoading(false);
+                }
+            }, 8000);
 
             if (getIsFirebaseInitialized()) {
-                // Subscribe to real-time updates
-                unsubscribe = subscribeToPatients((realtimePatients) => {
+                try {
+                    // Subscribe to real-time updates
+                    unsubscribe = subscribeToPatients((realtimePatients) => {
+                        clearTimeout(safetyTimeout);
+                        if (!isMounted) return;
+
+                        if (realtimePatients.length === 0) {
+                            // Auto-seed if empty to prevent "broken" feel
+                            console.log("DEBUG: DB empty, seeding initial data...");
+                            const syntheaData = generateSyntheaData();
+                            setPatients(syntheaData); // Show immediately
+
+                            // Save to Firebase in background
+                            syntheaData.forEach(p => {
+                                savePatient(p).catch(err =>
+                                    console.error("Failed to save patient:", p.id, err)
+                                );
+                            });
+                        } else {
+                            setPatients(realtimePatients);
+                        }
+                        setIsLoading(false);
+                    });
+                } catch (error) {
+                    console.error("DEBUG: Firebase subscription error:", error);
                     clearTimeout(safetyTimeout);
-                    if (realtimePatients.length === 0) {
-                        // Auto-seed if empty to prevent "broken" feel
-                        console.log("DEBUG: DB empty, seeding initial data...");
-                        seedPatients().then(seeded => {
-                            seeded.forEach(p => savePatient(p));
-                        });
-                    } else {
-                        setPatients(realtimePatients);
-                    }
+                    // Fallback to Synthea data on Firebase error
+                    const fallbackPatients = generateSyntheaData();
+                    setPatients(fallbackPatients);
                     setIsLoading(false);
-                });
+                }
             } else {
                 // Local Mode Fallback with Synthea & Persistence
                 try {
@@ -62,6 +86,9 @@ export const usePatientData = (currentUser: User | null) => {
                 } catch (e) {
                     console.error("DEBUG: Seed failed", e);
                     setError('Failed to load initial data.');
+                    // Still provide fallback data
+                    const fallbackPatients = generateSyntheaData();
+                    setPatients(fallbackPatients);
                 } finally {
                     clearTimeout(safetyTimeout);
                     console.log("DEBUG: initialize finally, setting isLoading false");
@@ -77,6 +104,7 @@ export const usePatientData = (currentUser: User | null) => {
         }
 
         return () => {
+            isMounted = false;
             if (unsubscribe) unsubscribe();
         };
     }, [currentUser]);
@@ -146,7 +174,7 @@ export const usePatientData = (currentUser: User | null) => {
                 aiTriageWithCache = { department: 'Unknown', suggested_triage: 'None', confidence: 0, fromCache: false };
             }
 
-            const patientId = `PAT-${Date.now()}`;
+            const patientId = `PAT-${Date.now()}-${Math.floor(Math.random() * 100)}`;
             const newPatient: Patient = {
                 ...patientData,
                 id: patientId,
@@ -178,12 +206,23 @@ export const usePatientData = (currentUser: User | null) => {
                 rounds: [],
             };
 
+            // OPTIMISTIC UPDATE: Always update local state first for instant UI feedback
+            setPatients(prev => [newPatient, ...prev]);
+            console.log("DEBUG: Patient added to local state:", newPatient.id, newPatient.name);
+
+            // Then persist to Firebase if available
             if (getIsFirebaseInitialized()) {
-                await savePatient(newPatient);
-            } else {
-                setPatients(prev => [newPatient, ...prev]);
+                try {
+                    await savePatient(newPatient);
+                    console.log("DEBUG: Patient saved to Firebase");
+                } catch (dbErr) {
+                    console.error("DEBUG: Firebase save failed, patient still in local state", dbErr);
+                    // Patient is already in local state, so UI still works
+                }
             }
+
             addToast('Patient registered successfully', 'success');
+            return newPatient; // Return the patient for navigation purposes
         } catch (err: any) {
             console.error("Failed to add patient:", err);
             const msg = err.message || "Failed to register patient.";

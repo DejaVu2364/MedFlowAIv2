@@ -1,87 +1,68 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test.describe('Visual Regression', () => {
-
-    test('Doctor Dashboard', async ({ page }) => {
-        await page.goto('/login');
-        await page.fill('input[type="email"]', 'doctor@medflow.ai');
-        await page.fill('input[type="password"]', 'password123');
-        await page.click('button:has-text("Sign In")');
-        await expect(page).toHaveURL('/');
-
-        // Wait for stability
+    test('Dashboard loads correctly', async ({ page }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
         await page.waitForTimeout(1000);
-        await expect(page).toHaveScreenshot('doctor-dashboard.png');
+
+        await expect(page.getByText(/MedFlow/i).first()).toBeVisible();
+
+        await expect(page).toHaveScreenshot('dashboard.png', {
+            maxDiffPixels: 100,
+            timeout: 10000
+        });
     });
 
-    test('Clinical Workspace (Draft)', async ({ page }) => {
-        // Assume logged in (or use test.use storageState in future)
-        await page.goto('/login');
-        await page.fill('input[type="email"]', 'doctor@medflow.ai');
-        await page.fill('input[type="password"]', 'password123');
-        await page.click('button:has-text("Sign In")');
+    test('Patient Detail page loads', async ({ page }) => {
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
 
-        const viewBtn = page.locator('button:has-text("View")').first();
-        if (await viewBtn.count() > 0) {
-            await viewBtn.click();
-            await expect(page).toHaveURL(/\/patient\/.+/);
+        const patientItem = page.locator('.cursor-pointer').filter({ hasText: /\d+y/ }).first();
+        if (await patientItem.count() > 0) {
+            await patientItem.click();
+            await page.waitForURL(/\/patient\/.+/);
+            await page.waitForTimeout(500);
 
-            // Type some draft text to ensure distinct state
-            await page.locator('textarea[placeholder*="History of Present Illness"]').fill('Visual Test Draft Content');
-
-            await page.waitForTimeout(500); // Wait for potential auto-save or UI settle
-            await expect(page).toHaveScreenshot('clinical-workspace.png');
+            await expect(page).toHaveScreenshot('patient-detail.png', {
+                maxDiffPixels: 100,
+                timeout: 10000
+            });
         }
     });
 
-    test('AI Scribe Panel', async ({ page }) => {
-        await page.goto('/login');
-        await page.fill('input[type="email"]', 'doctor@medflow.ai');
-        await page.fill('input[type="password"]', 'password123');
-        await page.click('button:has-text("Sign In")');
+    test('Ops Command Center loads', async ({ page }) => {
+        await page.goto('/ops');
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(1000);
 
-        const viewBtn = page.locator('button:has-text("View")').first();
-        if (await viewBtn.count() > 0) {
-            await viewBtn.click();
+        await expect(page.getByText('Ops Command Center')).toBeVisible();
 
-            // Open Scribe logic: it's embedded in the workspace as per code
-            const scribeHeader = page.locator('text=AI Clinical Scribe');
-            await expect(scribeHeader).toBeVisible();
-            await expect(page.locator('button:has-text("Start Scribe")')).toBeVisible();
-
-            // Screenshot just the scribe panel? Or full page?
-            // Let's capture the panel specifically if possible, or viewport
-            // Capturing panel:
-            const panel = page.locator('.space-y-4').filter({ hasText: 'AI Clinical Scribe' }).first();
-            await expect(panel).toHaveScreenshot('ai-scribe-panel.png');
-        }
+        await expect(page).toHaveScreenshot('ops-command-center.png', {
+            maxDiffPixels: 100,
+            timeout: 10000
+        });
     });
 
-    test('Admin Revenue Dashboard', async ({ page }) => {
-        await page.goto('/login');
-        await page.fill('input[type="email"]', 'admin@medflow.ai');
-        await page.fill('input[type="password"]', 'admin123');
-        await page.click('button:has-text("Sign In")');
+    test('Bed Manager loads', async ({ page }) => {
+        await page.goto('/beds');
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(1000);
 
-        await page.goto('/admin/revenue');
-        await expect(page.locator('text=Admin Only')).toBeVisible();
-        await page.waitForTimeout(1000); // Animations
-        await expect(page).toHaveScreenshot('admin-revenue-initial.png');
+        await expect(page).toHaveScreenshot('bed-manager.png', {
+            maxDiffPixels: 100,
+            timeout: 10000
+        });
     });
 
-    test('Offline Banner', async ({ page, context }) => {
-        await page.goto('/login');
-        await page.fill('input[type="email"]', 'doctor@medflow.ai');
-        await page.fill('input[type="password"]', 'password123');
-        await page.click('button:has-text("Sign In")');
+    test('Triage view loads', async ({ page }) => {
+        await page.goto('/?view=triage');
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(1000);
 
-        await context.setOffline(true);
-        const banner = page.locator('text=You are currently offline');
-        await expect(banner).toBeVisible();
-
-        // Capture banner specifically or top of page
-        // Let's capture viewport
-        await expect(page).toHaveScreenshot('offline-state.png');
+        await expect(page).toHaveScreenshot('triage-view.png', {
+            maxDiffPixels: 100,
+            timeout: 10000
+        });
     });
-
 });

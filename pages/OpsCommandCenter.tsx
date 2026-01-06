@@ -1,11 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { usePatient } from '../contexts/PatientContext';
 import { useNavigate } from 'react-router-dom';
-import { allocatePatientsToBeds, calculateTotalRoomRevenue } from '../utils/bedLogic';
-import { runRevenueAudit } from '../utils/revenueGuardLogic';
+import { allocatePatientsToBeds, calculateTotalRoomRevenue, Bed } from '../utils/bedLogic';
+import { runRevenueAudit, RevenueRisk } from '../utils/revenueGuardLogic';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '../components/ui/sheet';
+import { ScrollArea } from '../components/ui/scroll-area';
+import { Patient } from '../types';
 import {
     BedDouble,
     IndianRupee,
@@ -16,9 +19,14 @@ import {
     CheckCircle2,
     ArrowRight,
     TrendingUp,
-    Users
+    Users,
+    Activity,
+    Sparkles,
+    ExternalLink,
+    RefreshCw
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { OpsAIInsights } from '../components/ops/OpsAIInsights';
 
 // Types
 interface BedStats {
@@ -52,8 +60,31 @@ interface DischargeStats {
 }
 
 const OpsCommandCenter: React.FC = () => {
-    const { patients } = usePatient();
+    const { patients, isLoading } = usePatient();
     const navigate = useNavigate();
+
+    // Real-time refresh state
+    const [lastUpdated, setLastUpdated] = useState(new Date());
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    // Auto-refresh every 30 seconds
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setIsRefreshing(true);
+            setLastUpdated(new Date());
+            // Simulate quick refresh animation
+            setTimeout(() => setIsRefreshing(false), 500);
+        }, 30000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    // Manual refresh handler
+    const handleRefresh = () => {
+        setIsRefreshing(true);
+        setLastUpdated(new Date());
+        setTimeout(() => setIsRefreshing(false), 500);
+    };
 
     // Calculate Bed Stats
     const bedStats = useMemo((): BedStats => {
@@ -81,18 +112,46 @@ const OpsCommandCenter: React.FC = () => {
         };
     }, [patients]);
 
-    // Calculate TPA Stats (Mock for now - will connect to real data)
+    // Calculate TPA Stats from REAL patient insurance data
     const tpaStats = useMemo((): TPAStats => {
-        // Mock insurance patients (in real app, would use actual insurance data)
         const activePatients = patients.filter(p => p.status !== 'Discharged');
-        const mockInsuranceCount = Math.floor(activePatients.length * 0.4); // Assume 40% are insured
+
+        // Get patients with actual insurance info
+        const insuredPatients = activePatients.filter(p =>
+            p.paymentMode === 'Insurance' && p.insuranceInfo
+        );
+
+        // Fallback: if no real insurance data, estimate from payment mode
+        const insuranceCount = insuredPatients.length > 0
+            ? insuredPatients.length
+            : activePatients.filter(p => p.paymentMode === 'Insurance').length;
+
+        // Calculate pending based on incomplete documentation  
+        const pendingPatients = insuredPatients.filter(p => {
+            const hasClinicalFile = p.clinicalFile?.sections?.history;
+            const hasCompleteFile = p.clinicalFile?.status === 'signed';
+            return !hasCompleteFile;
+        });
+
+        // Urgent: patients with insurance pending > 24 hours (check registration time)
+        const now = Date.now();
+        const urgentPatients = pendingPatients.filter(p => {
+            const regTime = new Date(p.registrationTime).getTime();
+            const hoursSinceReg = (now - regTime) / (1000 * 60 * 60);
+            return hoursSinceReg > 24;
+        });
+
+        // Calculate total pending amount from insurance caps
+        const totalPendingAmount = insuredPatients.reduce((sum, p) => {
+            return sum + (p.insuranceInfo?.overallCap || 50000);
+        }, 0);
 
         return {
-            pending: Math.min(5, mockInsuranceCount),
-            approved: Math.floor(mockInsuranceCount * 0.6),
-            rejected: Math.floor(mockInsuranceCount * 0.1),
-            urgent: Math.min(2, Math.floor(mockInsuranceCount * 0.3)),
-            totalPendingAmount: mockInsuranceCount * 45000
+            pending: pendingPatients.length,
+            approved: Math.max(0, insuranceCount - pendingPatients.length),
+            rejected: 0, // No rejection tracking yet
+            urgent: urgentPatients.length,
+            totalPendingAmount
         };
     }, [patients]);
 
@@ -131,6 +190,39 @@ const OpsCommandCenter: React.FC = () => {
         };
     }, [patients]);
 
+    // Get full beds array for drill-down
+    const beds = useMemo(() => allocatePatientsToBeds(patients), [patients]);
+
+    // Get revenue risks for drill-down
+    const revenueRisks = useMemo(() => runRevenueAudit(patients), [patients]);
+
+    // Sheet state for drill-down panels
+    type SheetType = 'beds' | 'tpa' | 'leakage' | 'discharge' | null;
+    const [activeSheet, setActiveSheet] = useState<SheetType>(null);
+
+    // Derived lists for drill-downs
+    const criticalBeds = beds.filter(b => b.status === 'occupied' && b.patient);
+    const dischargeReadyPatients = patients.filter(p =>
+        p.status !== 'Discharged' &&
+        p.clinicalFile?.sections?.history &&
+        p.clinicalFile?.sections?.gpe &&
+        !p.orders?.some(o => o.status === 'draft' || o.status === 'sent')
+    );
+    const blockedPatients = patients.filter(p =>
+        p.status !== 'Discharged' &&
+        (p.orders?.filter(o => o.status === 'draft').length || 0) > 2
+    );
+    const insuredPatients = patients.filter(p =>
+        p.status !== 'Discharged' &&
+        (p.paymentMode === 'Insurance' || p.insuranceInfo)
+    );
+
+    // Handle patient navigation
+    const handlePatientClick = (patientId: string) => {
+        setActiveSheet(null);
+        navigate(`/patient/${patientId}/medview`);
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 p-6 space-y-6">
             {/* Header */}
@@ -143,17 +235,45 @@ const OpsCommandCenter: React.FC = () => {
                         Real-time hospital operations at a glance
                     </p>
                 </div>
-                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
-                    <Clock className="w-3 h-3 mr-1" />
-                    Live
-                </Badge>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleRefresh}
+                        className={cn(
+                            "gap-1 text-slate-500 hover:text-slate-700",
+                            isRefreshing && "opacity-50"
+                        )}
+                        disabled={isRefreshing}
+                    >
+                        <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
+                        <span className="text-xs">
+                            {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    </Button>
+                    <Badge variant="outline" className={cn(
+                        "bg-indigo-50 text-indigo-700 border-indigo-200",
+                        isRefreshing && "animate-pulse"
+                    )}>
+                        <Clock className="w-3 h-3 mr-1" />
+                        Live
+                    </Badge>
+                </div>
             </header>
+
+            {/* AI Insights Panel */}
+            <OpsAIInsights
+                patients={patients}
+                bedOccupancyRate={bedStats.occupancyRate}
+                totalLeakage={leakageStats.totalLeakage}
+                dischargeReady={dischargeStats.ready}
+            />
 
             {/* KPI Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
                 {/* Bed Census Card */}
-                <Card className="border-0 shadow-md bg-white hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/beds')}>
+                <Card className="border-0 shadow-md bg-white hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setActiveSheet('beds')}>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-slate-500 flex items-center justify-between">
                             <span className="flex items-center gap-2">
@@ -188,7 +308,7 @@ const OpsCommandCenter: React.FC = () => {
                 </Card>
 
                 {/* Revenue Leakage Card */}
-                <Card className="border-0 shadow-md bg-white hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/revenue')}>
+                <Card className="border-0 shadow-md bg-white hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setActiveSheet('leakage')}>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-slate-500 flex items-center justify-between">
                             <span className="flex items-center gap-2">
@@ -225,7 +345,7 @@ const OpsCommandCenter: React.FC = () => {
                 </Card>
 
                 {/* TPA Alerts Card */}
-                <Card className="border-0 shadow-md bg-white hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/tpa')}>
+                <Card className="border-0 shadow-md bg-white hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setActiveSheet('tpa')}>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-slate-500 flex items-center justify-between">
                             <span className="flex items-center gap-2">
@@ -259,7 +379,7 @@ const OpsCommandCenter: React.FC = () => {
                 </Card>
 
                 {/* Discharge Readiness Card */}
-                <Card className="border-0 shadow-md bg-white">
+                <Card className="border-0 shadow-md bg-white hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setActiveSheet('discharge')}>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-slate-500 flex items-center gap-2">
                             <LogOut className="w-4 h-4 text-emerald-600" />
@@ -323,16 +443,229 @@ const OpsCommandCenter: React.FC = () => {
                             <div>
                                 <p className="text-xs text-slate-500 uppercase tracking-wider">Insurance Patients</p>
                                 <p className="text-2xl font-bold text-slate-900">
-                                    {Math.floor(patients.filter(p => p.status !== 'Discharged').length * 0.4)}
+                                    {insuredPatients.length}
                                 </p>
                             </div>
                         </div>
                         <div className="text-right text-xs text-slate-400">
-                            Last updated: {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                            Last updated: {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                         </div>
                     </div>
                 </CardContent>
             </Card>
+
+            {/* DRILL-DOWN SHEETS */}
+
+            {/* Beds Drill-Down */}
+            <Sheet open={activeSheet === 'beds'} onOpenChange={() => setActiveSheet(null)}>
+                <SheetContent className="w-[500px] sm:w-[600px]">
+                    <SheetHeader>
+                        <SheetTitle className="flex items-center gap-2">
+                            <BedDouble className="w-5 h-5 text-blue-600" />
+                            Bed Census Detail
+                        </SheetTitle>
+                        <SheetDescription>
+                            {bedStats.occupied}/{bedStats.total} beds occupied • {bedStats.available} available
+                        </SheetDescription>
+                    </SheetHeader>
+                    <ScrollArea className="h-[calc(100vh-180px)] mt-4">
+                        <div className="space-y-2">
+                            {criticalBeds.slice(0, 15).map(bed => (
+                                <Card key={bed.id} className="hover:bg-slate-50 transition-colors">
+                                    <CardContent className="p-3 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Badge variant="outline" className="font-mono">{bed.label}</Badge>
+                                            <div>
+                                                <p className="font-medium text-sm">{bed.patient?.name}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    LOS: {bed.patient?.lengthOfStay}d • ₹{bed.patient?.currentBill.toLocaleString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Button size="sm" variant="ghost" onClick={() => handlePatientClick(bed.patient!.id)}>
+                                            <ExternalLink className="w-4 h-4" />
+                                        </Button>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                    <div className="mt-4 pt-4 border-t">
+                        <Button className="w-full" onClick={() => { setActiveSheet(null); navigate('/beds'); }}>
+                            <BedDouble className="w-4 h-4 mr-2" />
+                            Open Full Bed Manager
+                        </Button>
+                    </div>
+                </SheetContent>
+            </Sheet>
+
+            {/* Leakage Drill-Down */}
+            <Sheet open={activeSheet === 'leakage'} onOpenChange={() => setActiveSheet(null)}>
+                <SheetContent className="w-[500px] sm:w-[600px]">
+                    <SheetHeader>
+                        <SheetTitle className="flex items-center gap-2">
+                            <IndianRupee className="w-5 h-5 text-rose-600" />
+                            Revenue Leakage Risks
+                        </SheetTitle>
+                        <SheetDescription>
+                            {revenueRisks.length} issues • ₹{(leakageStats.totalLeakage / 1000).toFixed(0)}K potential loss
+                        </SheetDescription>
+                    </SheetHeader>
+                    <ScrollArea className="h-[calc(100vh-180px)] mt-4">
+                        <div className="space-y-2">
+                            {revenueRisks.slice(0, 10).map(risk => (
+                                <Card key={risk.id} className="border-l-4 border-l-rose-400 hover:bg-slate-50">
+                                    <CardContent className="p-3">
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <Badge className={cn(
+                                                    "text-[10px] mb-1",
+                                                    risk.severity === 'High' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
+                                                )}>
+                                                    {risk.category}
+                                                </Badge>
+                                                <p className="text-sm text-slate-700">{risk.description}</p>
+                                                <p className="text-xs font-medium text-rose-600 mt-1">₹{risk.potentialLoss.toLocaleString()}</p>
+                                            </div>
+                                            <Button size="sm" variant="ghost" onClick={() => handlePatientClick(risk.patientId)}>
+                                                <ExternalLink className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                    <div className="mt-4 pt-4 border-t">
+                        <Button className="w-full" onClick={() => { setActiveSheet(null); navigate('/revenue'); }}>
+                            <TrendingUp className="w-4 h-4 mr-2" />
+                            Open Revenue Dashboard
+                        </Button>
+                    </div>
+                </SheetContent>
+            </Sheet>
+
+            {/* TPA Drill-Down */}
+            <Sheet open={activeSheet === 'tpa'} onOpenChange={() => setActiveSheet(null)}>
+                <SheetContent className="w-[500px] sm:w-[600px]">
+                    <SheetHeader>
+                        <SheetTitle className="flex items-center gap-2">
+                            <FileCheck className="w-5 h-5 text-purple-600" />
+                            Insurance Patients
+                        </SheetTitle>
+                        <SheetDescription>
+                            {tpaStats.pending} pending • {tpaStats.approved} approved • ₹{(tpaStats.totalPendingAmount / 100000).toFixed(1)}L value
+                        </SheetDescription>
+                    </SheetHeader>
+                    <ScrollArea className="h-[calc(100vh-180px)] mt-4">
+                        <div className="space-y-2">
+                            {insuredPatients.slice(0, 15).map(patient => (
+                                <Card key={patient.id} className="hover:bg-slate-50 transition-colors">
+                                    <CardContent className="p-3 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className={cn(
+                                                "w-2 h-2 rounded-full",
+                                                patient.clinicalFile?.status === 'signed' ? 'bg-emerald-500' : 'bg-amber-500'
+                                            )} />
+                                            <div>
+                                                <p className="font-medium text-sm">{patient.name}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {patient.insuranceInfo?.provider || 'Insurance'} • Cap: ₹{((patient.insuranceInfo?.overallCap || 0) / 1000).toFixed(0)}K
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Button size="sm" variant="ghost" onClick={() => handlePatientClick(patient.id)}>
+                                            <ExternalLink className="w-4 h-4" />
+                                        </Button>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                            {insuredPatients.length === 0 && (
+                                <div className="text-center py-8 text-slate-400">
+                                    <FileCheck className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">No insurance patients found</p>
+                                </div>
+                            )}
+                        </div>
+                    </ScrollArea>
+                    <div className="mt-4 pt-4 border-t">
+                        <Button className="w-full bg-purple-600 hover:bg-purple-700" onClick={() => { setActiveSheet(null); navigate('/tpa'); }}>
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Open TPA Desk (AI Pre-Auth)
+                        </Button>
+                    </div>
+                </SheetContent>
+            </Sheet>
+
+            {/* Discharge Drill-Down */}
+            <Sheet open={activeSheet === 'discharge'} onOpenChange={() => setActiveSheet(null)}>
+                <SheetContent className="w-[500px] sm:w-[600px]">
+                    <SheetHeader>
+                        <SheetTitle className="flex items-center gap-2">
+                            <LogOut className="w-5 h-5 text-emerald-600" />
+                            Discharge Pipeline
+                        </SheetTitle>
+                        <SheetDescription>
+                            {dischargeStats.ready} ready • {dischargeStats.blocked} blocked
+                        </SheetDescription>
+                    </SheetHeader>
+                    <ScrollArea className="h-[calc(100vh-180px)] mt-4">
+                        <div className="space-y-4">
+                            {/* Ready Section */}
+                            {dischargeReadyPatients.length > 0 && (
+                                <div>
+                                    <h4 className="text-xs font-medium text-emerald-600 uppercase mb-2">Ready for Discharge</h4>
+                                    <div className="space-y-2">
+                                        {dischargeReadyPatients.slice(0, 8).map(patient => (
+                                            <Card key={patient.id} className="border-l-4 border-l-emerald-400 hover:bg-slate-50">
+                                                <CardContent className="p-3 flex items-center justify-between">
+                                                    <div>
+                                                        <p className="font-medium text-sm">{patient.name}</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {patient.age}y {patient.gender.charAt(0)} • Ready
+                                                        </p>
+                                                    </div>
+                                                    <Button size="sm" variant="outline" onClick={() => { setActiveSheet(null); navigate(`/patient/${patient.id}/discharge`); }}>
+                                                        <LogOut className="w-3 h-3 mr-1" />
+                                                        Discharge
+                                                    </Button>
+                                                </CardContent>
+                                            </Card>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Blocked Section */}
+                            {blockedPatients.length > 0 && (
+                                <div>
+                                    <h4 className="text-xs font-medium text-rose-600 uppercase mb-2 flex items-center gap-1">
+                                        <AlertTriangle className="w-3 h-3" />
+                                        Blocked (Pending Orders)
+                                    </h4>
+                                    <div className="space-y-2">
+                                        {blockedPatients.slice(0, 5).map(patient => (
+                                            <Card key={patient.id} className="border-l-4 border-l-rose-400 hover:bg-slate-50">
+                                                <CardContent className="p-3 flex items-center justify-between">
+                                                    <div>
+                                                        <p className="font-medium text-sm">{patient.name}</p>
+                                                        <p className="text-xs text-rose-600">
+                                                            {patient.orders?.filter(o => o.status === 'draft').length} pending orders
+                                                        </p>
+                                                    </div>
+                                                    <Button size="sm" variant="ghost" onClick={() => handlePatientClick(patient.id)}>
+                                                        <ExternalLink className="w-4 h-4" />
+                                                    </Button>
+                                                </CardContent>
+                                            </Card>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </ScrollArea>
+                </SheetContent>
+            </Sheet>
         </div>
     );
 };
