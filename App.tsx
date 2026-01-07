@@ -7,6 +7,8 @@ import { ToastProvider } from './contexts/ToastContext';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { CommandPalette } from './components/ui/command-palette';
 import { UnifiedAICopilot } from './components/ai/UnifiedAICopilot';
+import { JarvisGlobalProvider } from './services/jarvis/JarvisGlobalProvider';
+import { JarvisCommandPalette, JarvisFloatingButton, JarvisChatPanel } from './components/jarvis';
 
 // Helper to handle chunk load errors (e.g., after deployment)
 const lazyLoad = (importFunc: () => Promise<any>) => {
@@ -150,11 +152,16 @@ const App: React.FC = () => {
                     <UIProvider>
                         <AuthProvider>
                             <PatientProvider>
-                                <VitalsMonitorProvider>
-                                    <LabAlertProvider>
-                                        <AppRoutes />
-                                    </LabAlertProvider>
-                                </VitalsMonitorProvider>
+                                <JarvisGlobalProvider>
+                                    <VitalsMonitorProvider>
+                                        <LabAlertProvider>
+                                            <AppRoutes />
+                                            <JarvisFloatingButton />
+                                            <JarvisChatPanel />
+                                            <JarvisCommandPalette />
+                                        </LabAlertProvider>
+                                    </VitalsMonitorProvider>
+                                </JarvisGlobalProvider>
                             </PatientProvider>
                         </AuthProvider>
                     </UIProvider>
