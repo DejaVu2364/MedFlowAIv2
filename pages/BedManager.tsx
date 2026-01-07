@@ -44,6 +44,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../contexts/ToastContext';
 import { cn } from '../lib/utils';
 import { Patient } from '../types';
+import BackToDashboard from '../components/navigation/BackToDashboard';
 
 interface BedManagerProps {
     embedded?: boolean;
@@ -183,6 +184,9 @@ const BedManager: React.FC<BedManagerProps> = ({ embedded = false }) => {
             {!embedded && (
                 <header className="flex items-center justify-between mb-8">
                     <div>
+                        <div className="flex items-center gap-3 mb-1">
+                            <BackToDashboard />
+                        </div>
                         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Bed Manager & Financials</h1>
                         <p className="text-muted-foreground">Real-time occupancy, revenue, and discharge tracking</p>
                     </div>

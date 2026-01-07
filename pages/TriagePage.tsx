@@ -5,6 +5,7 @@ import { Patient, Vitals } from '../types';
 import { Input } from '../components/ui/input';
 import { MultiComplaintWithDuration } from '../components/common/MultiComplaintWithDuration';
 import { TriageBadge } from '../components/common/TriageBadge';
+import BackToDashboard from '../components/navigation/BackToDashboard';
 
 const TriageForm: React.FC<{ patient: Patient }> = ({ patient }) => {
     const { updatePatientVitals, isLoading, setSelectedPatientId, updatePatientComplaint } = usePatient();
@@ -124,6 +125,9 @@ const TriagePatientList: React.FC = () => {
 
     return (
         <div className="max-w-4xl mx-auto">
+            <div className="flex items-center gap-3 mb-4">
+                <BackToDashboard />
+            </div>
             <h2 className="text-2xl font-bold text-text-primary mb-6">Patient Triage & Admission</h2>
             <div className="bg-background-primary rounded-xl shadow-lg overflow-hidden">
                 {waitingPatients.length > 0 ? (

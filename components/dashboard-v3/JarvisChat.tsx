@@ -10,6 +10,7 @@ import { Input } from '../ui/input';
 import { cn } from '../../lib/utils';
 import { chatWithGemini } from '../../services/geminiService';
 import { checkRateLimit, recordApiCall } from '../../services/tokenUsageTracker';
+import { resolvePronouns, addMessage, setCurrentPatient, extractEntities, buildContextString } from '../../services/jarvis/ConversationManager';
 
 interface JarvisChatProps {
     isOpen: boolean;
@@ -96,24 +97,41 @@ Rules:
                 throw new Error(`Rate limited. Wait ${Math.ceil(rateCheck.waitMs / 1000)}s`);
             }
 
+            // Set current patient context
+            if (currentPatient) {
+                setCurrentPatient(currentPatient);
+            }
+
+            // Resolve pronouns in user input
+            const resolvedInput = resolvePronouns(input.trim(), patients);
+
+            // Extract entities from input
+            extractEntities(input.trim(), patients);
+
+            // Add message to conversation history
+            addMessage(userMessage, patients);
+
             // Build conversation history
             const conversationHistory = messages.slice(-6).map(m =>
                 `${m.role === 'user' ? 'Doctor' : 'Jarvis'}: ${m.content}`
             ).join('\n');
 
-            // Call Gemini using chat format
+            // Call Gemini using chat format with enhanced context
             const chatHistory = messages.slice(-6).map(m => ({
                 role: m.role === 'user' ? 'user' as const : 'ai' as const,
                 content: m.content
             }));
 
+            // Build enhanced context with conversation manager
+            const enhancedContext = `${buildContext()}\n\n${buildContextString()}`;
+
             const response = await chatWithGemini(
-                [...chatHistory, { role: 'user' as const, content: input.trim() }],
-                buildContext()
+                [...chatHistory, { role: 'user' as const, content: resolvedInput }],
+                enhancedContext
             );
 
             // Record API call
-            recordApiCall('jarvis_chat', 'gemini-flash', input.trim(), response || '');
+            recordApiCall('jarvis_chat', 'gemini-flash', resolvedInput, response || '');
 
             const jarvisMessage: ConversationMessage = {
                 id: (Date.now() + 1).toString(),

@@ -15,11 +15,13 @@ import { AIWhisperBar } from '../components/dashboard-v3/AIWhisperBar';
 import { NextPatientCard } from '../components/dashboard-v3/NextPatientCard';
 import { ActivePatientCard } from '../components/dashboard-v3/ActivePatientCard';
 import { JarvisChat } from '../components/dashboard-v3/JarvisChat';
+import { AIInsightDrawer } from '../components/dashboard-v3/AIInsightDrawer';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 
-import { Search as SearchIcon, UserPlus as UserPlusIcon, RefreshCw as RefreshCwIcon, Calendar, BedDouble, Stethoscope, Users, SparklesIcon } from 'lucide-react';
+import { Search as SearchIcon, UserPlus as UserPlusIcon, RefreshCw as RefreshCwIcon, Calendar, BedDouble, Stethoscope, Users, Moon, Sun } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { loadDashboardConfig, toggleDarkMode, initializeDarkMode } from '../services/jarvis/AdaptiveUI';
 
 const DashboardV3: React.FC = () => {
     const navigate = useNavigate();
@@ -32,6 +34,15 @@ const DashboardV3: React.FC = () => {
     const [dismissedInsights, setDismissedInsights] = useState<string[]>([]);
     const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
     const [isJarvisOpen, setIsJarvisOpen] = useState(false);
+    const [isInsightDrawerOpen, setIsInsightDrawerOpen] = useState(false);
+    const [isDarkMode, setIsDarkMode] = useState(false);
+
+    // Initialize dark mode
+    useEffect(() => {
+        initializeDarkMode();
+        const config = loadDashboardConfig();
+        setIsDarkMode(config.darkMode);
+    }, []);
 
     // Initialize doctor profile
     useEffect(() => {
@@ -73,6 +84,12 @@ const DashboardV3: React.FC = () => {
                     break;
                 case 'j':
                     setIsJarvisOpen(prev => !prev);
+                    break;
+                case 'i':
+                    setIsInsightDrawerOpen(prev => !prev);
+                    break;
+                case 'd':
+                    handleToggleDarkMode();
                     break;
             }
         };
@@ -142,10 +159,12 @@ const DashboardV3: React.FC = () => {
     }, [doctorProfile, navigate]);
 
     const handleInsightClick = useCallback((insight: JarvisInsight) => {
-        if (insight.suggestedAction?.type === 'navigate') {
-            const route = insight.suggestedAction.payload?.route as string;
-            if (route) navigate(route);
+        // Always navigate to the patient's MedView
+        if (insight.patientId) {
+            navigate(`/patient/${insight.patientId}/medview`);
         }
+
+        // Record that suggestion was accepted
         if (doctorProfile) {
             recordSuggestionAccepted(doctorProfile);
         }
@@ -327,17 +346,19 @@ const DashboardV3: React.FC = () => {
 
                 {/* Keyboard Hints */}
                 <div className="text-center text-xs text-slate-400 dark:text-slate-500 pt-4">
-                    <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">N</kbd> Next Patient •{' '}
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">N</kbd> Next •{' '}
                     <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">S</kbd> Search •{' '}
-                    <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">J</kbd> Jarvis
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">J</kbd> Jarvis •{' '}
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">I</kbd> Insights •{' '}
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">D</kbd> Dark
                 </div>
             </div>
 
-            {/* Floating Jarvis Button */}
+            {/* Floating Jarvis Button - positioned higher to avoid overlap */}
             {!isJarvisOpen && (
                 <button
                     onClick={() => setIsJarvisOpen(true)}
-                    className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center z-40"
+                    className="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center z-40"
                     title="Open Jarvis (J)"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
@@ -352,8 +373,23 @@ const DashboardV3: React.FC = () => {
                 onClose={() => setIsJarvisOpen(false)}
                 patients={patients}
             />
+
+            {/* AI Insight Drawer */}
+            <AIInsightDrawer
+                isOpen={isInsightDrawerOpen}
+                onClose={() => setIsInsightDrawerOpen(false)}
+                patient={nextPatient}
+                insights={insights}
+                onActionClick={handleInsightClick}
+            />
         </div>
     );
+};
+
+// Dark mode toggle handler
+const handleToggleDarkMode = () => {
+    const newMode = toggleDarkMode();
+    return newMode;
 };
 
 export default DashboardV3;

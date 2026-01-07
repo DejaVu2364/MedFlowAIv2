@@ -5,3 +5,4 @@ export { AIWhisperBar } from './AIWhisperBar';
 export { NextPatientCard } from './NextPatientCard';
 export { ActivePatientCard } from './ActivePatientCard';
 export { JarvisChat } from './JarvisChat';
+export { AIInsightDrawer } from './AIInsightDrawer';
