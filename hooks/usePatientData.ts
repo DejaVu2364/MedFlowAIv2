@@ -61,14 +61,20 @@ export const usePatientData = (currentUser: User | null) => {
                                 );
                             });
                         } else {
-                            // Filter to prefer new patients if mixed
-                            const validPatients = realtimePatients.filter(p => p.id.startsWith('P-2024') || p.id.startsWith('PAT-') || (p.clinicalFile?.sections?.systemic && Object.keys(p.clinicalFile.sections.systemic).length > 0));
+                            // STRICT: Only show Synthea patients (P-2024* prefix), max 20
+                            const syntheaPatients = realtimePatients.filter(p => p.id.startsWith('P-2024'));
 
-                            if (validPatients.length > 0) {
-                                setPatients(validPatients);
+                            if (syntheaPatients.length >= 20) {
+                                // Use the first 20 Synthea patients
+                                setPatients(syntheaPatients.slice(0, 20));
+                            } else if (syntheaPatients.length > 0) {
+                                // Have some Synthea patients but less than 20
+                                setPatients(syntheaPatients);
                             } else {
-                                // Fallback if filter removes everyone
-                                setPatients(realtimePatients);
+                                // No Synthea patients, regenerate
+                                console.log("DEBUG: No Synthea patients found, regenerating...");
+                                const freshData = generateSyntheaData();
+                                setPatients(freshData);
                             }
                         }
                         setIsLoading(false);
