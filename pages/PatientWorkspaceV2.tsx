@@ -6,7 +6,7 @@ import { ScribeSidePanel } from '../components/clinical-v2/ScribeSidePanel';
 import ClinicalFlowWorkspace from '../components/clinical/ClinicalFlowWorkspace';
 import { Button } from '../components/ui/button';
 import { SOAPDraftResponse } from '../services/geminiService';
-import { FloatingMicButton } from '../components/clinical-v2/FloatingMicButton';
+// FloatingMicButton removed - replaced by Jarvis global voice
 
 const PatientWorkspaceV2: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -55,27 +55,19 @@ const PatientWorkspaceV2: React.FC = () => {
     }
 
     return (
-        <>
-            <ClinicalSplitLayout
-                patient={patient}
-                sidePanel={<ScribeSidePanel onDraftGenerated={setScribeDraft} />}
-            >
-                <div className="w-full">
-                    <ClinicalFlowWorkspace
-                        patient={patient}
-                        draftData={scribeDraft}
-                        onClearDraft={() => setScribeDraft(null)}
-                    />
-                </div>
-            </ClinicalSplitLayout>
-
-            {/* Floating Mic Button - Always visible for quick access */}
-            <FloatingMicButton
-                isListening={isListening}
-                onClick={handleMicClick}
-                className="lg:hidden" // Only show on mobile, desktop has side panel
-            />
-        </>
+        <ClinicalSplitLayout
+            patient={patient}
+            sidePanel={<ScribeSidePanel onDraftGenerated={setScribeDraft} />}
+        >
+            <div className="w-full">
+                <ClinicalFlowWorkspace
+                    patient={patient}
+                    draftData={scribeDraft}
+                    onClearDraft={() => setScribeDraft(null)}
+                />
+            </div>
+        </ClinicalSplitLayout>
+        // FloatingMicButton removed - Jarvis handles voice input globally
     );
 };
 

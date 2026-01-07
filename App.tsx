@@ -6,7 +6,7 @@ import { PatientProvider } from './contexts/PatientContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { DashboardLayout } from './components/layout/DashboardLayout';
 import { CommandPalette } from './components/ui/command-palette';
-import { UnifiedAICopilot } from './components/ai/UnifiedAICopilot';
+// UnifiedAICopilot removed - replaced by Jarvis
 import { JarvisGlobalProvider } from './services/jarvis/JarvisGlobalProvider';
 import { JarvisCommandPalette, JarvisFloatingButton, JarvisChatPanel } from './components/jarvis';
 
@@ -67,14 +67,11 @@ const ProtectedLayout: React.FC = () => {
     }
 
     return (
-        <>
-            <MedicalLayout>
-                <div className="p-6 max-w-[1600px] mx-auto animate-in fade-in duration-300">
-                    <Outlet />
-                </div>
-            </MedicalLayout>
-            <UnifiedAICopilot />
-        </>
+        <MedicalLayout>
+            <div className="p-6 max-w-[1600px] mx-auto animate-in fade-in duration-300">
+                <Outlet />
+            </div>
+        </MedicalLayout>
     );
 };
 

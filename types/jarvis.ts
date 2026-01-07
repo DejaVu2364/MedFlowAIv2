@@ -65,17 +65,18 @@ export interface JarvisAction {
 export interface JarvisInsight {
     id: string;
     patientId: string;
-    patientName: string;
-    category: 'vitals' | 'labs' | 'pattern' | 'wait' | 'medication';
+    patientName?: string;
+    category: 'vitals' | 'labs' | 'pattern' | 'wait' | 'medication' | 'documentation' | 'workflow';
     message: string;
     severity: 'high' | 'medium' | 'low';
     suggestedAction?: {
         label: string;
-        type: 'order' | 'navigate' | 'dismiss';
+        type: 'order' | 'navigate' | 'dismiss' | 'ask' | 'mark_nkda';
         payload?: Record<string, unknown>;
     };
-    isPersonalized: boolean;  // Based on learned patterns?
-    createdAt: string;
+    isPersonalized?: boolean;  // Based on learned patterns?
+    timestamp?: string;
+    createdAt?: string;
 }
 
 export interface JarvisBriefing {
