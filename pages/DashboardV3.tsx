@@ -14,10 +14,11 @@ import { MorningBriefing } from '../components/dashboard-v3/MorningBriefing';
 import { AIWhisperBar } from '../components/dashboard-v3/AIWhisperBar';
 import { NextPatientCard } from '../components/dashboard-v3/NextPatientCard';
 import { ActivePatientCard } from '../components/dashboard-v3/ActivePatientCard';
+import { JarvisChat } from '../components/dashboard-v3/JarvisChat';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 
-import { Search as SearchIcon, UserPlus as UserPlusIcon, RefreshCw as RefreshCwIcon, Calendar } from 'lucide-react';
+import { Search as SearchIcon, UserPlus as UserPlusIcon, RefreshCw as RefreshCwIcon, Calendar, BedDouble, Stethoscope, Users, SparklesIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const DashboardV3: React.FC = () => {
@@ -30,6 +31,7 @@ const DashboardV3: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [dismissedInsights, setDismissedInsights] = useState<string[]>([]);
     const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
+    const [isJarvisOpen, setIsJarvisOpen] = useState(false);
 
     // Initialize doctor profile
     useEffect(() => {
@@ -68,6 +70,9 @@ const DashboardV3: React.FC = () => {
                     break;
                 case 's':
                     document.getElementById('dashboard-search')?.focus();
+                    break;
+                case 'j':
+                    setIsJarvisOpen(prev => !prev);
                     break;
             }
         };
@@ -219,6 +224,22 @@ const DashboardV3: React.FC = () => {
                     </Button>
                 </header>
 
+                {/* Quick Navigation */}
+                <div className="flex gap-2 flex-wrap">
+                    <Button variant="outline" size="sm" onClick={() => navigate('/beds')} className="gap-2">
+                        <BedDouble className="w-4 h-4" /> Beds
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => navigate('/triage')} className="gap-2">
+                        <Stethoscope className="w-4 h-4" /> Triage
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => navigate('/consultant')} className="gap-2">
+                        <Users className="w-4 h-4" /> Consultant
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => navigate('/ops')} className="gap-2">
+                        📊 Ops Center
+                    </Button>
+                </div>
+
                 {/* Search */}
                 <div className="relative max-w-md">
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -307,9 +328,30 @@ const DashboardV3: React.FC = () => {
                 {/* Keyboard Hints */}
                 <div className="text-center text-xs text-slate-400 dark:text-slate-500 pt-4">
                     <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">N</kbd> Next Patient •{' '}
-                    <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">S</kbd> Search
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">S</kbd> Search •{' '}
+                    <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono">J</kbd> Jarvis
                 </div>
             </div>
+
+            {/* Floating Jarvis Button */}
+            {!isJarvisOpen && (
+                <button
+                    onClick={() => setIsJarvisOpen(true)}
+                    className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center justify-center z-40"
+                    title="Open Jarvis (J)"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+                    </svg>
+                </button>
+            )}
+
+            {/* Jarvis Chat */}
+            <JarvisChat
+                isOpen={isJarvisOpen}
+                onClose={() => setIsJarvisOpen(false)}
+                patients={patients}
+            />
         </div>
     );
 };

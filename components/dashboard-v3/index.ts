@@ -4,3 +4,4 @@ export { MorningBriefing } from './MorningBriefing';
 export { AIWhisperBar } from './AIWhisperBar';
 export { NextPatientCard } from './NextPatientCard';
 export { ActivePatientCard } from './ActivePatientCard';
+export { JarvisChat } from './JarvisChat';
