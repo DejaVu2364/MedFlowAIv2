@@ -2,6 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AITriageSuggestion, Department, TriageLevel, SOAPNote, TeamNote, FollowUpQuestion, ComposedHistory, Patient, Order, OrderCategory, PatientOverview, Vitals, ClinicalFileSections, OrderPriority, Round, VitalsRecord, DischargeSummary } from '../types';
 import { getFromCache, setInCache } from './caching';
+import { recordApiCall, checkRateLimit } from './tokenUsageTracker';
 
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
@@ -342,10 +343,12 @@ export const generateOverviewSummary = async (patient: Patient): Promise<Patient
         Active Orders: ${patient.orders.filter(o => o.status === 'sent' || o.status === 'in_progress').map(o => o.label).join(', ') || 'None'}.
         Latest Round Summary: ${patient.rounds.find(r => r.status === 'signed')?.subjective || 'No rounds yet'}.
     `;
+    const prompt = `You are a clinical AI assistant. Based on the following data, generate a structured summary for the patient's overview tab. Each field should be a very brief, single line. \n\n${context}`;
+
     try {
         const response = await ai.models.generateContent({
             model: proModel,
-            contents: `You are a clinical AI assistant. Based on the following data, generate a structured summary for the patient's overview tab. Each field should be a very brief, single line. \n\n${context}`,
+            contents: prompt,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -360,6 +363,10 @@ export const generateOverviewSummary = async (patient: Patient): Promise<Patient
                 },
             },
         });
+
+        // Record token usage
+        recordApiCall('generateOverviewSummary', proModel, prompt, response.text);
+
         return JSON.parse(response.text) as PatientOverview;
     } catch (error) {
         console.error("Error generating overview summary:", error);

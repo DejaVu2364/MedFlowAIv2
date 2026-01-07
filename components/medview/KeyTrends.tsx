@@ -104,7 +104,7 @@ export const KeyTrends: React.FC<{ patient: Patient }> = ({ patient }) => {
         },
         {
             label: "Resp Rate",
-            value: patient.vitals?.resp?.toString() || "--",
+            value: patient.vitals?.rr?.toString() || "--",
             unit: "breaths/min",
             trend: "stable",
             change: "vs last",

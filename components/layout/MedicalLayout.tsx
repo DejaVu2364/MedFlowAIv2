@@ -18,6 +18,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { usePatientData } from '../../hooks/usePatientData';
 import { useRBAC } from '../../hooks/useRBAC';
 import { ConnectionStatus } from '../common/ConnectionStatus';
+import { TokenUsageWidget } from '../TokenUsageWidget';
 
 interface MedicalLayoutProps {
     children: React.ReactNode;
@@ -230,7 +231,8 @@ export const MedicalLayout: React.FC<MedicalLayoutProps> = ({ children }) => {
             {/* Main Content Area */}
             <main className="flex-1 md:ml-64 min-h-screen bg-slate-50 transition-all duration-300 relative">
                 {/* Subtle floating status indicator */}
-                <div className="hidden md:block fixed top-4 right-4 z-40">
+                <div className="hidden md:flex fixed top-4 right-4 z-40 items-center gap-2">
+                    <TokenUsageWidget compact />
                     <ConnectionStatus />
                 </div>
 

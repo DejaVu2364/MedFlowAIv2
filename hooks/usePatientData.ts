@@ -35,6 +35,7 @@ export const usePatientData = (currentUser: User | null) => {
                 }
             }, 8000);
 
+
             if (getIsFirebaseInitialized()) {
                 try {
                     // Subscribe to real-time updates
@@ -42,27 +43,39 @@ export const usePatientData = (currentUser: User | null) => {
                         clearTimeout(safetyTimeout);
                         if (!isMounted) return;
 
-                        if (realtimePatients.length === 0) {
-                            // Auto-seed if empty to prevent "broken" feel
-                            console.log("DEBUG: DB empty, seeding initial data...");
-                            const syntheaData = generateSyntheaData();
-                            setPatients(syntheaData); // Show immediately
+                        const hasNewFormat = realtimePatients.some(p => p.id.startsWith('P-2024'));
 
-                            // Save to Firebase in background
+                        if (realtimePatients.length === 0 || !hasNewFormat) {
+                            console.log("DEBUG: DB empty or stale, REPLACING with new Synthea data...");
+                            const syntheaData = generateSyntheaData();
+
+                            // STRICT REPLACEMENT: The user wants 20 valid patients.
+                            // We ignore the stale ones from DB for this session.
+                            setPatients(syntheaData);
+
+                            // Save IN BACKGROUND. Next reload might merge them if we aren't careful, 
+                            // but for now this fixes the current view.
                             syntheaData.forEach(p => {
                                 savePatient(p).catch(err =>
                                     console.error("Failed to save patient:", p.id, err)
                                 );
                             });
                         } else {
-                            setPatients(realtimePatients);
+                            // Filter to prefer new patients if mixed
+                            const validPatients = realtimePatients.filter(p => p.id.startsWith('P-2024') || p.id.startsWith('PAT-') || (p.clinicalFile?.sections?.systemic && Object.keys(p.clinicalFile.sections.systemic).length > 0));
+
+                            if (validPatients.length > 0) {
+                                setPatients(validPatients);
+                            } else {
+                                // Fallback if filter removes everyone
+                                setPatients(realtimePatients);
+                            }
                         }
                         setIsLoading(false);
                     });
                 } catch (error) {
                     console.error("DEBUG: Firebase subscription error:", error);
                     clearTimeout(safetyTimeout);
-                    // Fallback to Synthea data on Firebase error
                     const fallbackPatients = generateSyntheaData();
                     setPatients(fallbackPatients);
                     setIsLoading(false);
@@ -70,7 +83,7 @@ export const usePatientData = (currentUser: User | null) => {
             } else {
                 // Local Mode Fallback with Synthea & Persistence
                 try {
-                    const STORAGE_KEY = 'medflow_local_patients';
+                    const STORAGE_KEY = 'medflow_local_patients_v2'; // Bumped version to invalidate cache
                     const stored = localStorage.getItem(STORAGE_KEY);
 
                     if (stored) {
@@ -84,6 +97,7 @@ export const usePatientData = (currentUser: User | null) => {
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(initialPatients));
                     }
                 } catch (e) {
+
                     console.error("DEBUG: Seed failed", e);
                     setError('Failed to load initial data.');
                     // Still provide fallback data
@@ -112,7 +126,7 @@ export const usePatientData = (currentUser: User | null) => {
     // Persist to LocalStorage (Local Mode Only)
     useEffect(() => {
         if (!getIsFirebaseInitialized() && patients.length > 0) {
-            localStorage.setItem('medflow_local_patients', JSON.stringify(patients));
+            localStorage.setItem('medflow_local_patients_v3', JSON.stringify(patients));
         }
     }, [patients]);
 

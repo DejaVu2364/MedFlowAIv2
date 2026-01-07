@@ -6,6 +6,7 @@ import { HomeIcon, UserPlusIcon, ClipboardDocumentListIcon, ChatBubbleLeftRightI
 import { Button } from './ui/button';
 import { ConnectionStatus } from './common/ConnectionStatus';
 import { AlertBadge } from './AlertBadge';
+import { TokenUsageWidget } from './TokenUsageWidget';
 
 interface HeaderProps {
     onToggleChat?: () => void;
@@ -81,6 +82,9 @@ const Header: React.FC<HeaderProps> = ({ onToggleChat }) => {
                         <div className="flex items-center gap-3">
                             {/* Connection Status */}
                             <ConnectionStatus />
+
+                            {/* Token Usage */}
+                            <TokenUsageWidget compact />
 
                             {/* Lab Alerts */}
                             <AlertBadge />
