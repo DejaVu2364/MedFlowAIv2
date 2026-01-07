@@ -1,7 +1,8 @@
 // JarvisScribeMode.tsx - Integrated scribe mode for Jarvis
 // Listens to doctor-patient conversations and extracts clinical data
+// NOW WITH STREAMING EXTRACTION for real-time feedback
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -11,15 +12,16 @@ import {
     Loader2,
     Sparkles,
     Volume2,
-    VolumeX,
     RefreshCw,
-    AlertCircle
+    AlertCircle,
+    Check
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useSpeechRecognition } from '../../hooks/useSpeechRecognition';
+import { useStreamingExtraction } from '../../hooks/useStreamingExtraction';
 import { extractClinicalDataFromTranscript, ExtractionResult } from '../../services/jarvis/ClinicalExtractor';
 import { ScribePreviewPanel } from './ScribePreviewPanel';
-import { ClinicalFileSections, Patient } from '../../types';
+import { ClinicalFileSections, Patient, Complaint } from '../../types';
 import { usePatient } from '../../contexts/PatientContext';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -31,6 +33,43 @@ interface JarvisScribeModeProps {
 
 type ScribeState = 'idle' | 'listening' | 'processing' | 'preview';
 
+// Live extraction indicator component
+const LiveExtractionIndicator: React.FC<{
+    complaints: Complaint[];
+    isExtracting: boolean;
+}> = ({ complaints, isExtracting }) => {
+    if (complaints.length === 0 && !isExtracting) return null;
+
+    return (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md">
+            <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="w-4 h-4 text-emerald-600" />
+                <span className="text-sm font-medium text-emerald-700">Live Extraction</span>
+                {isExtracting && (
+                    <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
+                )}
+            </div>
+            <div className="space-y-1">
+                {complaints.map((c, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                        <Check className="w-3 h-3 text-emerald-600" />
+                        <span className="font-medium">{c.symptom}</span>
+                        {c.duration && (
+                            <Badge variant="secondary" className="text-xs">{c.duration}</Badge>
+                        )}
+                    </div>
+                ))}
+                {isExtracting && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Extracting more...</span>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 export const JarvisScribeMode: React.FC<JarvisScribeModeProps> = ({
     patient,
     onClose,
@@ -39,8 +78,6 @@ export const JarvisScribeMode: React.FC<JarvisScribeModeProps> = ({
     const [state, setState] = useState<ScribeState>('idle');
     const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const extractionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const lastTranscriptRef = useRef<string>('');
 
     const { updateClinicalFileSection } = usePatient();
     const { addToast } = useToast();
@@ -56,50 +93,24 @@ export const JarvisScribeMode: React.FC<JarvisScribeModeProps> = ({
         setLanguage
     } = useSpeechRecognition();
 
-    // Handle recording state changes
-    useEffect(() => {
-        if (isListening) {
-            setState('listening');
-        }
-    }, [isListening]);
-
-    // Debounced extraction - extract when user pauses speaking
-    useEffect(() => {
-        if (!isListening || !transcript || transcript === lastTranscriptRef.current) {
-            return;
-        }
-
-        // Clear previous timeout
-        if (extractionTimeoutRef.current) {
-            clearTimeout(extractionTimeoutRef.current);
-        }
-
-        // Set new timeout for extraction after 3 seconds of no new speech
-        extractionTimeoutRef.current = setTimeout(async () => {
-            if (transcript.length > 50 && transcript !== lastTranscriptRef.current) {
-                lastTranscriptRef.current = transcript;
-                // Don't stop listening, just do background extraction
-                // This provides real-time feedback
-            }
-        }, 3000);
-
-        return () => {
-            if (extractionTimeoutRef.current) {
-                clearTimeout(extractionTimeoutRef.current);
-            }
-        };
-    }, [transcript, isListening]);
+    // Streaming extraction - shows partial results while speaking
+    const {
+        extractedComplaints,
+        isExtracting,
+        reset: resetStreaming
+    } = useStreamingExtraction(transcript, isListening, 5000);
 
     // Start scribe
     const handleStart = useCallback(() => {
         setError(null);
         resetTranscript();
+        resetStreaming();
         setExtractionResult(null);
         startListening();
         setState('listening');
-    }, [resetTranscript, startListening]);
+    }, [resetTranscript, resetStreaming, startListening]);
 
-    // Stop and process
+    // Stop and process full extraction
     const handleStop = useCallback(async () => {
         stopListening();
 
@@ -113,6 +124,21 @@ export const JarvisScribeMode: React.FC<JarvisScribeModeProps> = ({
 
         try {
             const result = await extractClinicalDataFromTranscript(transcript);
+
+            // Merge streaming results with full extraction
+            if (extractedComplaints.length > 0 && result.extractedFields.history) {
+                const existingSymptoms = new Set(
+                    (result.extractedFields.history.complaints || []).map(c => c.symptom.toLowerCase())
+                );
+                const uniqueFromStream = extractedComplaints.filter(
+                    c => !existingSymptoms.has(c.symptom.toLowerCase())
+                );
+                result.extractedFields.history.complaints = [
+                    ...(result.extractedFields.history.complaints || []),
+                    ...uniqueFromStream
+                ];
+            }
+
             setExtractionResult(result);
             setState('preview');
         } catch (err) {
@@ -120,16 +146,17 @@ export const JarvisScribeMode: React.FC<JarvisScribeModeProps> = ({
             setError('Failed to extract clinical data. Please try again.');
             setState('idle');
         }
-    }, [stopListening, transcript]);
+    }, [stopListening, transcript, extractedComplaints]);
 
     // Reset
     const handleReset = useCallback(() => {
         stopListening();
         resetTranscript();
+        resetStreaming();
         setExtractionResult(null);
         setState('idle');
         setError(null);
-    }, [stopListening, resetTranscript]);
+    }, [stopListening, resetTranscript, resetStreaming]);
 
     // Apply extracted data to clinical file
     const handleApply = useCallback((data: Partial<ClinicalFileSections>) => {
@@ -150,12 +177,10 @@ export const JarvisScribeMode: React.FC<JarvisScribeModeProps> = ({
 
     // Handle ask question
     const handleAskQuestion = useCallback((question: string) => {
-        // Add question to conversation context
         addToast(`Suggested question: "${question}"`, 'info');
-        // In a more advanced version, this could trigger TTS
     }, [addToast]);
 
-    // Language toggle
+    // Language options
     const languageOptions = [
         { value: 'en-IN', label: 'English' },
         { value: 'hi-IN', label: 'हिंदी' },
@@ -176,7 +201,7 @@ export const JarvisScribeMode: React.FC<JarvisScribeModeProps> = ({
     }
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" data-testid="jarvis-scribe-mode">
             {/* Main Scribe Card */}
             <Card className={cn(
                 "border-2 transition-colors duration-300",
@@ -198,6 +223,7 @@ export const JarvisScribeMode: React.FC<JarvisScribeModeProps> = ({
                                 onChange={(e) => setLanguage(e.target.value as any)}
                                 disabled={state !== 'idle'}
                                 className="text-xs h-7 px-2 rounded border border-input"
+                                data-testid="language-selector"
                             >
                                 {languageOptions.map(opt => (
                                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -243,12 +269,20 @@ export const JarvisScribeMode: React.FC<JarvisScribeModeProps> = ({
                             </p>
                             <p className="text-sm text-muted-foreground">
                                 {state === 'idle' && 'Click Start to begin capturing conversation'}
-                                {state === 'listening' && `${transcript.split(' ').length} words captured`}
+                                {state === 'listening' && `${transcript.split(' ').filter(w => w).length} words captured`}
                                 {state === 'processing' && 'Jarvis is analyzing the conversation'}
                                 {state === 'preview' && 'Edit and apply to clinical file'}
                             </p>
                         </div>
                     </div>
+
+                    {/* Live Extraction Indicator (STREAMING!) */}
+                    {state === 'listening' && (
+                        <LiveExtractionIndicator
+                            complaints={extractedComplaints}
+                            isExtracting={isExtracting}
+                        />
+                    )}
 
                     {/* Transcript Preview (while listening) */}
                     {state === 'listening' && transcript && (
@@ -271,6 +305,7 @@ export const JarvisScribeMode: React.FC<JarvisScribeModeProps> = ({
                             <Button
                                 onClick={handleStart}
                                 className="gap-2 bg-teal-600 hover:bg-teal-700 text-white flex-1"
+                                data-testid="start-scribe-btn"
                             >
                                 <Mic className="w-4 h-4" />
                                 Start Scribe
@@ -283,6 +318,7 @@ export const JarvisScribeMode: React.FC<JarvisScribeModeProps> = ({
                                     onClick={handleStop}
                                     variant="destructive"
                                     className="gap-2 flex-1"
+                                    data-testid="stop-scribe-btn"
                                 >
                                     <Square className="w-4 h-4 fill-current" />
                                     Stop & Process
