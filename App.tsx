@@ -27,6 +27,7 @@ const lazyLoad = (importFunc: () => Promise<any>) => {
 // Lazy load pages for performance
 const DashboardPage = lazyLoad(() => import('./pages/DashboardPage'));
 const DashboardV2 = lazyLoad(() => import('./pages/DashboardV2'));
+const DashboardV3 = lazyLoad(() => import('./pages/DashboardV3'));
 const TPADesk = lazyLoad(() => import('./pages/TPADesk'));
 const PatientWorkspaceV2 = lazyLoad(() => import('./pages/PatientWorkspaceV2'));
 const RevenueDashboard = lazyLoad(() => import('./pages/RevenueDashboard'));
@@ -89,7 +90,8 @@ const AppRoutes: React.FC = () => {
                 <Route path="/login" element={<LoginPage />} />
 
                 <Route element={<ProtectedLayout />}>
-                    <Route path="/" element={<DashboardV2 />} />
+                    <Route path="/" element={<DashboardV3 />} />
+                    <Route path="/dashboard-old" element={<DashboardV2 />} />
                     <Route path="/beds" element={<BedManager />} />
                     <Route path="/revenue" element={<RevenueDashboard />} />
                     <Route path="/tpa" element={<TPADesk />} />
@@ -112,7 +114,7 @@ const AppRoutes: React.FC = () => {
                 </Route>
 
                 <Route path="/404" element={<NotFoundPage />} />
-                <Route path="*" element={<DashboardV2 />} />
+                <Route path="*" element={<DashboardV3 />} />
             </Routes>
         </React.Suspense>
     );
