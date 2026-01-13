@@ -1,11 +1,12 @@
 // Embedding Service
-// Generates text embeddings using Google's text-embedding-004 model
+// Generates text embeddings using configurable embedding model
 
 import { GoogleGenAI } from '@google/genai';
 import { getCachedEmbedding, setCachedEmbedding } from './EmbeddingCache';
+import { MEMORY_SETTINGS } from './config';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const EMBEDDING_MODEL = 'text-embedding-004';
+const EMBEDDING_MODEL = MEMORY_SETTINGS.embeddingModel;
 
 /**
  * Generate embedding for text using Google's embedding model
