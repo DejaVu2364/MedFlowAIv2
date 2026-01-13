@@ -1,10 +1,13 @@
 // Jarvis Agent Loop
 // Core ReAct (Reason + Act) loop for the agent
+// Phase 2: Enhanced with Episodic Memory
 
 import { GoogleGenAI } from '@google/genai';
 import { AgentContext, AgentResponse, AgentStep, PendingAction } from './types';
 import { executeTool, getGeminiToolDeclarations } from './ToolExecutor';
 import { AGENT_CONFIG } from './config';
+// Phase 2: Memory imports
+import { searchMemory, formatEpisodesForContext, saveEpisode, generateSessionId, DEFAULT_MEMORY_CONFIG } from '../memory';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -41,12 +44,37 @@ export async function runAgentLoop(
     const toolsUsed: string[] = [];
     const pendingActions: PendingAction[] = [];
     let stepNumber = 0;
+    const sessionId = generateSessionId();
+
+    // Phase 2: Retrieve relevant memories
+    let memoryContext = '';
+    if (DEFAULT_MEMORY_CONFIG.enabled && context.currentUser?.id) {
+        try {
+            const memories = await searchMemory(
+                context.currentUser.id,
+                userQuery,
+                context.currentPatient?.id,
+                context.currentPatient?.name
+            );
+            memoryContext = formatEpisodesForContext(memories);
+            if (memoryContext) {
+                console.log(`[Jarvis Agent] Retrieved ${memories.length} relevant memories`);
+            }
+        } catch (err) {
+            console.warn('[Jarvis Agent] Memory retrieval failed:', err);
+        }
+    }
+
+    // Enhance system prompt with memory context
+    const enhancedPrompt = memoryContext
+        ? `${systemPrompt}\n${memoryContext}`
+        : systemPrompt;
 
     // Build conversation history
     const conversationHistory: any[] = [
         {
             role: 'user',
-            parts: [{ text: `${systemPrompt}\n\nUser Query: ${userQuery}` }]
+            parts: [{ text: `${enhancedPrompt}\n\nUser Query: ${userQuery}` }]
         }
     ];
 
@@ -142,6 +170,21 @@ export async function runAgentLoop(
                     observation: null,
                     isFinal: true
                 });
+
+                // Phase 2: Save episode to memory
+                if (DEFAULT_MEMORY_CONFIG.enabled && context.currentUser?.id) {
+                    const confidence = toolsUsed.length > 0 ? 0.85 : 0.7;
+                    saveEpisode(
+                        context.currentUser.id,
+                        context.currentPatient?.id || 'general',
+                        context.currentPatient?.name || 'Unknown',
+                        userQuery,
+                        textResponse,
+                        [...new Set(toolsUsed)],
+                        confidence,
+                        sessionId
+                    ).catch(err => console.warn('[Jarvis Agent] Failed to save episode:', err));
+                }
 
                 return {
                     answer: textResponse,
