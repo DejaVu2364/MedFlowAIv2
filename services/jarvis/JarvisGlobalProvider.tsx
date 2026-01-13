@@ -247,23 +247,56 @@ Rules:
             const resolvedInput = resolvePronouns(content.trim(), patients);
             addMessage(userMessage, patients);
 
-            // Build chat history
-            const chatHistory = messages.slice(-6).map(m => ({
-                role: m.role === 'user' ? 'user' as const : 'ai' as const,
-                content: m.content
-            }));
+            let responseText: string;
 
-            const response = await chatWithGemini(
-                [...chatHistory, { role: 'user' as const, content: resolvedInput }],
-                buildContext()
-            );
+            // Phase 1: Use Agent Loop if enabled
+            if (isAgentMode && currentUser) {
+                const agentContext = {
+                    currentPatient: currentPatientState,
+                    allPatients: patients,
+                    currentUser: {
+                        id: currentUser.id,
+                        name: currentUser.name,
+                        email: currentUser.email || '',
+                        role: currentUser.role || 'doctor'
+                    }
+                };
 
-            recordApiCall('jarvis_global', 'gemini-flash', resolvedInput, response || '');
+                const systemPrompt = buildAgentSystemPrompt(agentContext);
+                const agentResponse = await runAgentLoop(resolvedInput, systemPrompt, agentContext);
+
+                responseText = agentResponse.answer;
+
+                // Handle pending actions from agent
+                if (agentResponse.pendingActions && agentResponse.pendingActions.length > 0) {
+                    setPendingActions(prev => [...prev, ...agentResponse.pendingActions!]);
+                }
+
+                // Log tools used
+                if (agentResponse.toolsUsed.length > 0) {
+                    console.log('[Jarvis Agent] Tools used:', agentResponse.toolsUsed);
+                }
+
+                recordApiCall('jarvis_agent', 'gemini-flash', resolvedInput, responseText);
+            } else {
+                // Fallback to simple chat
+                const chatHistory = messages.slice(-6).map(m => ({
+                    role: m.role === 'user' ? 'user' as const : 'ai' as const,
+                    content: m.content
+                }));
+
+                responseText = await chatWithGemini(
+                    [...chatHistory, { role: 'user' as const, content: resolvedInput }],
+                    buildContext()
+                ) || "I'm having trouble processing that. Could you rephrase?";
+
+                recordApiCall('jarvis_global', 'gemini-flash', resolvedInput, responseText);
+            }
 
             const jarvisMessage: ConversationMessage = {
                 id: (Date.now() + 1).toString(),
                 role: 'jarvis',
-                content: response || "I'm having trouble processing that. Could you rephrase?",
+                content: responseText,
                 timestamp: new Date().toISOString()
             };
 
@@ -279,7 +312,7 @@ Rules:
         } finally {
             setIsLoading(false);
         }
-    }, [isLoading, currentPatientState, patients, messages, buildContext]);
+    }, [isLoading, currentPatientState, patients, messages, buildContext, isAgentMode, currentUser]);
 
     // Execute an action
     const executeAction = useCallback(async (action: JarvisAction) => {
