@@ -1,5 +1,6 @@
 // JarvisGlobalProvider - Makes Jarvis accessible from anywhere in the app
 // Provides useJarvis() hook for all components
+// Phase 1: Now with Tool Use Agent capabilities
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { Patient } from '../../types';
@@ -12,6 +13,8 @@ import { resolvePronouns, addMessage, setCurrentPatient, buildContextString } fr
 import { loadDashboardConfig, toggleDarkMode } from '../jarvis/AdaptiveUI';
 import { generateDashboardInsights } from '../jarvis/JarvisCore';
 import { getOrCreateProfile } from '../jarvis/DoctorMemory';
+// Phase 1: Agent imports
+import { runAgentLoop, buildAgentSystemPrompt, AGENT_CONFIG, PendingAction } from './agent';
 
 // Jarvis Context State
 interface JarvisState {
@@ -22,6 +25,9 @@ interface JarvisState {
     insights: JarvisInsight[];
     currentPatient: Patient | null;
     isDarkMode: boolean;
+    // Phase 1: Agent state
+    pendingActions: PendingAction[];
+    isAgentMode: boolean;
 }
 
 // Jarvis Context Actions
@@ -36,6 +42,10 @@ interface JarvisActions {
     executeAction: (action: JarvisAction) => Promise<void>;
     toggleDarkMode: () => void;
     refreshInsights: () => void;
+    // Phase 1: Agent actions
+    confirmAction: (actionId: string) => Promise<void>;
+    rejectAction: (actionId: string) => void;
+    clearPendingActions: () => void;
 }
 
 // Action types Jarvis can execute
@@ -80,6 +90,9 @@ export const JarvisGlobalProvider: React.FC<JarvisGlobalProviderProps> = ({ chil
         }
     ]);
     const [insights, setInsights] = useState<JarvisInsight[]>([]);
+    // Phase 1: Agent state
+    const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+    const isAgentMode = AGENT_CONFIG.enabled;
 
     // Initialize dark mode and doctor profile
     useEffect(() => {
@@ -143,13 +156,54 @@ export const JarvisGlobalProvider: React.FC<JarvisGlobalProviderProps> = ({ chil
 
     // Build context for Gemini
     const buildContext = useCallback(() => {
+        // 1. Patient Summaries (Concise)
         const patientSummaries = patients.slice(0, 10).map(p =>
             `- ${p.name} (${p.age}${p.gender?.charAt(0)}): Chief: ${p.chiefComplaints?.[0]?.complaint || 'None'}, Triage: ${p.triage?.level || 'None'}, Status: ${p.status}`
         ).join('\n');
 
-        const currentPatientContext = currentPatientState
-            ? `\n\nCurrent Patient in Focus: ${currentPatientState.name}\n- Age: ${currentPatientState.age}\n- Vitals: HR ${currentPatientState.vitals?.pulse}, BP ${currentPatientState.vitals?.bp_sys}/${currentPatientState.vitals?.bp_dia}, SpO2 ${currentPatientState.vitals?.spo2}%`
-            : '';
+        // 2. Focused Patient Context (Detailed)
+        let currentPatientContext = '';
+        if (currentPatientState) {
+            const p = currentPatientState;
+            console.log('[Jarvis] Building context for:', p.name);
+            console.log('[Jarvis] Vitals Snapshot:', p.vitals);
+            console.log('[Jarvis] Vitals History Len:', p.vitalsHistory?.length);
+
+
+            // A. Smart Vitals Strategy: Use snapshot OR fallback to history
+            let vitalsStr = "No recent vitals available.";
+
+            // Check snapshot
+            if (p.vitals && (p.vitals.pulse || p.vitals.bp_sys)) {
+                vitalsStr = `HR ${p.vitals.pulse || '?'}, BP ${p.vitals.bp_sys || '?'}/${p.vitals.bp_dia || '?'}, SpO2 ${p.vitals.spo2 || '?'}%, Temp ${p.vitals.temp_c || '?'}°C`;
+            }
+            // Fallback to history
+            else if (p.vitalsHistory && p.vitalsHistory.length > 0) {
+                // Sort by recency (just in case)
+                const sortedHistory = [...p.vitalsHistory].sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
+                const latest = sortedHistory[0];
+                const m = latest.measurements;
+                vitalsStr = `[Last Recorded ${new Date(latest.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}]: HR ${m.pulse || '?'}, BP ${m.bp_sys || '?'}/${m.bp_dia || '?'}, SpO2 ${m.spo2 || '?'}%, Temp ${m.temp_c || '?'}°C`;
+            }
+
+            // B. Active Problems
+            const problems = p.activeProblems
+                ? p.activeProblems.map(ap => `${ap.description} (${ap.status})`).join(', ')
+                : "None listed";
+
+            // C. Recent Lab Results (Abnormal or last 5)
+            const recentLabs = p.results
+                ? p.results.slice(0, 5).map(r => `${r.name}: ${r.value} ${r.unit || ''} (${r.isAbnormal ? 'ABNORMAL' : 'Normal'})`).join('; ')
+                : "No recent labs";
+
+            currentPatientContext = `
+Current Patient in Focus: ${p.name}
+- Demographics: ${p.age} years, ${p.gender}
+- Vitals: ${vitalsStr}
+- Active Problems: ${problems}
+- Recent Labs: ${recentLabs}
+`;
+        }
 
         const conversationContext = buildContextString();
 
@@ -265,6 +319,45 @@ Rules:
         }
     }, [patients, currentUser]);
 
+    // Phase 1: Confirm a pending action (e.g., add order)
+    const confirmAction = useCallback(async (actionId: string) => {
+        const action = pendingActions.find(a => a.actionId === actionId);
+        if (!action) return;
+
+        console.log('[Jarvis] Confirming action:', action);
+        // TODO: Execute the action (add order, etc.)
+        // For now, just remove from pending
+        setPendingActions(prev => prev.filter(a => a.actionId !== actionId));
+
+        // Add confirmation message
+        setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            role: 'jarvis',
+            content: `✅ Confirmed: ${action.description}`,
+            timestamp: new Date().toISOString()
+        }]);
+    }, [pendingActions]);
+
+    // Phase 1: Reject a pending action
+    const rejectAction = useCallback((actionId: string) => {
+        const action = pendingActions.find(a => a.actionId === actionId);
+        setPendingActions(prev => prev.filter(a => a.actionId !== actionId));
+
+        if (action) {
+            setMessages(prev => [...prev, {
+                id: Date.now().toString(),
+                role: 'jarvis',
+                content: `❌ Cancelled: ${action.description}`,
+                timestamp: new Date().toISOString()
+            }]);
+        }
+    }, [pendingActions]);
+
+    // Phase 1: Clear all pending actions
+    const clearPendingActions = useCallback(() => {
+        setPendingActions([]);
+    }, []);
+
     const contextValue: JarvisContextType = {
         // State
         isOpen,
@@ -274,6 +367,9 @@ Rules:
         insights,
         currentPatient: currentPatientState,
         isDarkMode,
+        // Phase 1: Agent state
+        pendingActions,
+        isAgentMode,
 
         // Actions
         openJarvis: () => setIsOpen(true),
@@ -285,7 +381,11 @@ Rules:
         setCurrentPatient: setCurrentPatientState,
         executeAction,
         toggleDarkMode: handleToggleDarkMode,
-        refreshInsights
+        refreshInsights,
+        // Phase 1: Agent actions
+        confirmAction,
+        rejectAction,
+        clearPendingActions
     };
 
     return (
